@@ -5,6 +5,8 @@
 # Este script contém as funções para download de cloud images e criação de
 # templates Linux no Proxmox VE com suporte a Cloud-Init.
 #
+# Compatibilidade: Proxmox VE 8.x e 9.x
+#
 # Distribuições suportadas:
 #   - Ubuntu 24.04 LTS (Noble Numbat)
 #   - Debian 12 (Bookworm)
@@ -37,6 +39,7 @@ create_linux_template() {
 
     log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     log_info "Iniciando criação do template: ${name} (VMID: ${vmid})"
+    log_info "Proxmox VE: ${PVE_FULL_VERSION:-N/A} | QEMU: ${QEMU_FULL_VERSION:-N/A}"
     log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
     # -------------------------------------------------------------------------
@@ -64,29 +67,29 @@ create_linux_template() {
     # Passo 3: Criar a VM base
     # -------------------------------------------------------------------------
     log_info "[${name}] Criando VM base (VMID: ${vmid})..."
-    qm create "$vmid" \
-        --name "$name" \
-        --ostype "$ostype" \
-        --memory "$LINUX_MEMORY" \
-        --cores "$LINUX_CORES" \
-        --cpu host \
-        --net0 "virtio,bridge=${BRIDGE_NET}" \
-        --description "$description" \
-        --tags "template,cloud-init,linux"
 
-    if [[ $? -ne 0 ]]; then
+    # Montar o comando base de criação da VM
+    local create_args=(
+        "$vmid"
+        --name "$name"
+        --ostype "$ostype"
+        --memory "$LINUX_MEMORY"
+        --cores "$LINUX_CORES"
+        --cpu host
+        --net0 "virtio,bridge=${BRIDGE_NET}"
+        --description "$description"
+        --tags "template,cloud-init,linux,pve${PVE_MAJOR_VERSION:-8}"
+    )
+
+    if ! qm create "${create_args[@]}"; then
         log_error "[${name}] Falha ao criar a VM base."
         return 1
     fi
 
     # -------------------------------------------------------------------------
-    # Passo 4: Importar o disco da cloud image
+    # Passo 4: Importar o disco da cloud image (compatível PVE 8/9)
     # -------------------------------------------------------------------------
-    log_info "[${name}] Importando disco da cloud image para o storage '${STORAGE_POOL}'..."
-    qm set "$vmid" \
-        --scsi0 "${STORAGE_POOL}:0,import-from=${image_path},discard=on"
-
-    if [[ $? -ne 0 ]]; then
+    if ! import_disk_image "$vmid" "$image_path" "$STORAGE_POOL" "scsi0"; then
         log_error "[${name}] Falha ao importar o disco."
         qm destroy "$vmid" --purge 2>/dev/null
         return 1
@@ -110,9 +113,7 @@ create_linux_template() {
     # Passo 7: Adicionar drive Cloud-Init
     # -------------------------------------------------------------------------
     log_info "[${name}] Adicionando drive Cloud-Init..."
-    qm set "$vmid" --ide2 "${STORAGE_POOL}:cloudinit"
-
-    if [[ $? -ne 0 ]]; then
+    if ! qm set "$vmid" --ide2 "${STORAGE_POOL}:cloudinit"; then
         log_error "[${name}] Falha ao adicionar drive Cloud-Init."
         qm destroy "$vmid" --purge 2>/dev/null
         return 1
@@ -123,11 +124,11 @@ create_linux_template() {
     # -------------------------------------------------------------------------
     if [[ "${ENABLE_QEMU_AGENT}" == "true" ]]; then
         log_info "[${name}] Habilitando QEMU Guest Agent..."
-        local fstrim_opt=""
+        local agent_opts="enabled=1"
         if [[ "${ENABLE_FSTRIM}" == "true" ]]; then
-            fstrim_opt=",fstrim_cloned_disks=1"
+            agent_opts="enabled=1,fstrim_cloned_disks=1"
         fi
-        qm set "$vmid" --agent "enabled=1${fstrim_opt}"
+        qm set "$vmid" --agent "$agent_opts"
     fi
 
     # -------------------------------------------------------------------------
@@ -146,9 +147,7 @@ create_linux_template() {
     fi
 
     # Configuração de rede
-    if [[ "$CI_NETWORK" == "dhcp" ]]; then
-        qm set "$vmid" --ipconfig0 "ip=dhcp"
-    elif [[ "$CI_NETWORK" == "static" ]] && [[ -n "$CI_IP" ]] && [[ -n "$CI_GW" ]]; then
+    if [[ "$CI_NETWORK" == "static" ]] && [[ -n "$CI_IP" ]] && [[ -n "$CI_GW" ]]; then
         qm set "$vmid" --ipconfig0 "ip=${CI_IP}/${CI_MASK},gw=${CI_GW}"
         if [[ -n "$CI_DNS" ]]; then
             qm set "$vmid" --nameserver "$CI_DNS"
@@ -173,9 +172,7 @@ create_linux_template() {
     # Passo 11: Converter para template
     # -------------------------------------------------------------------------
     log_info "[${name}] Convertendo VM para template..."
-    qm template "$vmid"
-
-    if [[ $? -ne 0 ]]; then
+    if ! qm template "$vmid"; then
         log_error "[${name}] Falha ao converter para template."
         return 1
     fi
@@ -203,7 +200,7 @@ create_ubuntu_2404_template() {
         "ubuntu-2404-template" \
         "$URL_UBUNTU_2404" \
         "l26" \
-        "Ubuntu 24.04 LTS (Noble Numbat) - Cloud-Init Template | Criado em: $(date '+%Y-%m-%d')"
+        "Ubuntu 24.04 LTS (Noble Numbat) - Cloud-Init Template | PVE ${PVE_FULL_VERSION:-N/A} | Criado em: $(date '+%Y-%m-%d')"
 }
 
 create_debian_12_template() {
@@ -212,7 +209,7 @@ create_debian_12_template() {
         "debian-12-template" \
         "$URL_DEBIAN_12" \
         "l26" \
-        "Debian 12 (Bookworm) - Cloud-Init Template | Criado em: $(date '+%Y-%m-%d')"
+        "Debian 12 (Bookworm) - Cloud-Init Template | PVE ${PVE_FULL_VERSION:-N/A} | Criado em: $(date '+%Y-%m-%d')"
 }
 
 create_debian_13_template() {
@@ -221,7 +218,7 @@ create_debian_13_template() {
         "debian-13-template" \
         "$URL_DEBIAN_13" \
         "l26" \
-        "Debian 13 (Trixie) - Cloud-Init Template | Criado em: $(date '+%Y-%m-%d')"
+        "Debian 13 (Trixie) - Cloud-Init Template | PVE ${PVE_FULL_VERSION:-N/A} | Criado em: $(date '+%Y-%m-%d')"
 }
 
 create_centos_stream9_template() {
@@ -230,7 +227,7 @@ create_centos_stream9_template() {
         "centos-stream9-template" \
         "$URL_CENTOS_STREAM_9" \
         "l26" \
-        "CentOS Stream 9 - Cloud-Init Template | Criado em: $(date '+%Y-%m-%d')"
+        "CentOS Stream 9 - Cloud-Init Template | PVE ${PVE_FULL_VERSION:-N/A} | Criado em: $(date '+%Y-%m-%d')"
 }
 
 create_rocky_8_template() {
@@ -239,7 +236,7 @@ create_rocky_8_template() {
         "rocky-8-template" \
         "$URL_ROCKY_8" \
         "l26" \
-        "Rocky Linux 8 - Cloud-Init Template | Criado em: $(date '+%Y-%m-%d')"
+        "Rocky Linux 8 - Cloud-Init Template | PVE ${PVE_FULL_VERSION:-N/A} | Criado em: $(date '+%Y-%m-%d')"
 }
 
 create_rocky_9_template() {
@@ -248,7 +245,7 @@ create_rocky_9_template() {
         "rocky-9-template" \
         "$URL_ROCKY_9" \
         "l26" \
-        "Rocky Linux 9 - Cloud-Init Template | Criado em: $(date '+%Y-%m-%d')"
+        "Rocky Linux 9 - Cloud-Init Template | PVE ${PVE_FULL_VERSION:-N/A} | Criado em: $(date '+%Y-%m-%d')"
 }
 
 # =============================================================================
@@ -322,7 +319,8 @@ create_all_linux_templates() {
 
     echo ""
 
-    # Retorna o array de criados para uso externo
+    # shellcheck disable=SC2034
     CREATED_LINUX_TEMPLATES=("${created[@]}")
+    # shellcheck disable=SC2034
     FAILED_LINUX_TEMPLATES=("${failed[@]}")
 }

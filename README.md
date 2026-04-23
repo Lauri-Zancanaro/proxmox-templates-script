@@ -2,6 +2,14 @@
 
 Um conjunto de scripts profissionais, modulares e automatizados para a criação de templates de Máquinas Virtuais (VMs) no Proxmox VE. Este projeto suporta múltiplas distribuições Linux (utilizando Cloud-Init) e Windows Server (utilizando Cloudbase-Init), seguindo as melhores práticas recomendadas pela documentação oficial do Proxmox e pela comunidade [1] [2].
 
+## Compatibilidade
+
+Este script foi atualizado e testado para garantir compatibilidade total com as versões mais recentes do Proxmox VE:
+*   **Proxmox VE 8.x** (QEMU 9.x)
+*   **Proxmox VE 9.x** (QEMU 10.x) [3]
+
+O script detecta automaticamente a versão do Proxmox e do QEMU instalados, ajustando comandos e parâmetros (como o método de importação de discos e validação de storages descontinuados como GlusterFS) para garantir a execução correta em cada ambiente.
+
 ## Funcionalidades
 
 O script orquestra o download, configuração de hardware, injeção de credenciais e conversão em template para os seguintes Sistemas Operacionais:
@@ -23,13 +31,13 @@ A solução foi projetada de forma modular para facilitar a manutenção e escal
 
 *   **`proxmox-templates.sh`**: O script principal (entrypoint) que orquestra a execução.
 *   **`config.env`**: Arquivo de configuração centralizado contendo variáveis como storage, rede, credenciais e URLs.
-*   **`scripts/utils.sh`**: Funções utilitárias de log, validação e tratamento de erros.
+*   **`scripts/utils.sh`**: Funções utilitárias de log, detecção de versão PVE, validação e tratamento de erros.
 *   **`scripts/linux-templates.sh`**: Lógica de criação para templates Linux.
 *   **`scripts/windows-templates.sh`**: Lógica de criação para templates Windows Server.
 
 ## Pré-requisitos
 
-1.  Um nó ou cluster rodando **Proxmox VE** (versão 7.x ou 8.x).
+1.  Um nó ou cluster rodando **Proxmox VE 8.x ou 9.x**.
 2.  Acesso root ao shell do Proxmox.
 3.  Conexão com a internet para o download das cloud images e pacotes.
 4.  Espaço em disco suficiente no storage pool configurado.
@@ -41,8 +49,8 @@ A solução foi projetada de forma modular para facilitar a manutenção e escal
 Clone o repositório diretamente no seu servidor Proxmox:
 
 ```bash
-git clone https://github.com/SEU-USUARIO/proxmox-template-scripts.git
-cd proxmox-template-scripts
+git clone https://github.com/Lauri-Zancanaro/proxmox-templates-script.git
+cd proxmox-templates-script
 ```
 
 Edite o arquivo de configuração `config.env` para adequar ao seu ambiente:
@@ -56,7 +64,15 @@ nano config.env
 *   `BRIDGE_NET`: A interface de rede do Proxmox (ex: `vmbr0`).
 *   `CI_USER` e `CI_PASSWORD`: Credenciais padrão que serão injetadas via Cloud-Init.
 
-### 2. Executar a Criação de Templates Linux
+### 2. Verificar Ambiente
+
+Antes de iniciar, você pode verificar se o script detecta corretamente a versão do seu Proxmox:
+
+```bash
+./proxmox-templates.sh version
+```
+
+### 3. Executar a Criação de Templates Linux
 
 Para criar todos os templates Linux suportados de uma só vez:
 
@@ -70,19 +86,19 @@ Para criar um template específico (exemplo: apenas Ubuntu 24.04):
 ./proxmox-templates.sh ubuntu-2404
 ```
 
-### 3. Executar a Criação de Templates Windows Server
+### 4. Executar a Criação de Templates Windows Server
 
-A criação de templates Windows é um processo **semi-automatizado**, pois a Microsoft não fornece imagens Cloud prontas. O script automatiza 90% do processo gerando um arquivo `autounattend.xml` [3].
+A criação de templates Windows é um processo **semi-automatizado**, pois a Microsoft não fornece imagens Cloud prontas. O script automatiza grande parte do processo gerando um arquivo `autounattend.xml` [4].
 
 **Passos para Windows:**
 1.  Baixe manualmente a ISO de avaliação do Windows Server desejado (2022 ou 2025) do Microsoft Evaluation Center.
-2.  Coloque a ISO no diretório de templates do Proxmox (padrão: `/var/lib/vz/template/iso/`). O nome do arquivo deve conter "windows", "server" e o ano ("2022" ou "2025").
+2.  Coloque a ISO no diretório de templates do Proxmox (padrão: `/var/lib/vz/template/iso/`). O nome do arquivo deve conter o ano ("2022" ou "2025").
 3.  Execute o script:
     ```bash
     ./proxmox-templates.sh win-2022
     ```
 4.  O script criará a VM e anexará a ISO do Windows, a ISO de drivers VirtIO e a ISO do `autounattend.xml` gerada automaticamente.
-5.  Inicie a VM no Proxmox e abra o console. A instalação do Windows ocorrerá de forma 100% autônoma.
+5.  Inicie a VM no Proxmox e abra o console. A instalação do Windows ocorrerá de forma autônoma.
 6.  Após o Windows iniciar e o script de pós-instalação (que instala os drivers VirtIO) concluir, instale manualmente o [Cloudbase-Init](https://cloudbase.it/cloudbase-init/) e execute o Sysprep (`/generalize /oobe /shutdown`).
 7.  Quando a VM desligar, finalize a conversão para template:
     ```bash
@@ -120,15 +136,17 @@ Este script incorpora diversas boas práticas consolidadas:
 *   **Hardware Otimizado:** Utiliza `virtio-scsi-pci` (ou `virtio-scsi-single`) para máxima performance de I/O [1].
 *   **QEMU Guest Agent:** Habilitado por padrão em todos os templates para comunicação bidirecional hypervisor-guest.
 *   **Thin Provisioning:** Ativação do parâmetro `discard=on` no disco e `fstrim_cloned_disks=1` no Guest Agent para recuperar espaço em disco.
-*   **Segurança Windows:** Configuração automática de TPM 2.0, UEFI (OVMF) e Secure Boot para templates Windows Server [3].
+*   **Segurança Windows:** Configuração automática de TPM 2.0, UEFI (OVMF) e Secure Boot para templates Windows Server [4].
+*   **Compatibilidade Multi-versão:** Adaptação automática de comandos (`import-from` vs `importdisk`) baseada na versão do Proxmox detectada.
 *   **Tratamento de Erros:** Validação de dependências, checagem de existência do Storage Pool e verificação de VMIDs em uso antes de qualquer operação destrutiva.
 
 ## CI/CD e Versionamento
 
-Este projeto inclui um workflow do GitHub Actions (`.github/workflows/shellcheck.yml`) que executa automaticamente o `shellcheck` em todos os scripts `.sh` a cada push ou pull request, garantindo a qualidade e segurança do código bash.
+Este projeto inclui um workflow do GitHub Actions (`.github/workflows/shellcheck.yml`) que executa automaticamente o `shellcheck` em todos os scripts `.sh` a cada push ou pull request, garantindo a qualidade e segurança do código bash. Todos os scripts são validados para rodar sem warnings ou erros.
 
 ## Referências
 
 [1] Proxmox VE Documentation: "qm(1) - QEMU/KVM Virtual Machine Manager". Disponível em: https://pve.proxmox.com/pve-docs/qm.1.html
 [2] Proxmox Wiki: "Cloud-Init Support". Disponível em: https://pve.proxmox.com/wiki/Cloud-Init_Support
-[3] ComputingForGeeks: "Create Windows Server 2022 Template in Proxmox VE". Disponível em: https://computingforgeeks.com/windows-server-2022-template-proxmox/
+[3] Proxmox Wiki: "Roadmap - Proxmox VE 9.0". Disponível em: https://pve.proxmox.com/wiki/Roadmap#9.0-known-issues
+[4] ComputingForGeeks: "Create Windows Server 2022 Template in Proxmox VE". Disponível em: https://computingforgeeks.com/windows-server-2022-template-proxmox/

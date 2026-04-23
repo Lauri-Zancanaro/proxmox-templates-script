@@ -7,6 +7,8 @@
 #   Script automatizado para criação de templates de VMs no Proxmox VE com
 #   suporte a Cloud-Init (Linux) e Cloudbase-Init (Windows Server).
 #
+# Compatibilidade: Proxmox VE 8.x e 9.x
+#
 # Uso:
 #   ./proxmox-templates.sh [COMANDO] [OPÇÕES]
 #
@@ -24,6 +26,7 @@
 #   win-2025            Cria apenas o template Windows Server 2025
 #   finalize-windows    Finaliza template Windows pós-instalação manual
 #   list                Lista os templates existentes
+#   version             Exibe a versão do Proxmox VE e QEMU detectados
 #   help                Exibe esta ajuda
 #
 # Exemplos:
@@ -33,11 +36,14 @@
 #   ./proxmox-templates.sh finalize-windows 9007
 #
 # Autor: mecloud360
-# Repositório: https://github.com/mecloud360/proxmox-template-scripts
+# Repositório: https://github.com/Lauri-Zancanaro/proxmox-templates-script
 # Licença: MIT
 # =============================================================================
 
 set -euo pipefail
+
+# Versão do script
+readonly SCRIPT_VERSION="1.1.0"
 
 # Diretório base do script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -57,18 +63,24 @@ else
 fi
 
 # Carregar funções utilitárias
+# shellcheck source=scripts/utils.sh
 source "${SCRIPT_DIR}/scripts/utils.sh"
 
 # Carregar módulo de templates Linux
+# shellcheck source=scripts/linux-templates.sh
 source "${SCRIPT_DIR}/scripts/linux-templates.sh"
 
 # Carregar módulo de templates Windows
+# shellcheck source=scripts/windows-templates.sh
 source "${SCRIPT_DIR}/scripts/windows-templates.sh"
 
 # =============================================================================
 # Função de ajuda
 # =============================================================================
 show_help() {
+    echo ""
+    echo "Proxmox VE Template Creation Script v${SCRIPT_VERSION}"
+    echo "Compatível com Proxmox VE 8.x e 9.x"
     echo ""
     echo "Uso: $(basename "$0") [COMANDO] [OPÇÕES]"
     echo ""
@@ -89,6 +101,7 @@ show_help() {
     printf "  %-25s %s\n" "" ""
     printf "  %-25s %s\n" "finalize-windows <VMID>" "Finaliza template Windows após instalação"
     printf "  %-25s %s\n" "list" "Lista templates existentes no cluster"
+    printf "  %-25s %s\n" "version" "Exibe versão do PVE e QEMU detectados"
     printf "  %-25s %s\n" "help" "Exibe esta mensagem de ajuda"
     echo ""
     echo "Configuração: Edite o arquivo config.env antes de executar."
@@ -118,11 +131,11 @@ list_templates() {
 
     for vmid in "${vmids[@]}"; do
         if qm status "$vmid" &>/dev/null; then
-            local name status
+            local name status is_template
             name=$(qm config "$vmid" 2>/dev/null | grep "^name:" | awk '{print $2}')
             status=$(qm status "$vmid" 2>/dev/null | awk '{print $2}')
 
-            local is_template="VM"
+            is_template="VM"
             if qm config "$vmid" 2>/dev/null | grep -q "^template: 1"; then
                 is_template="Template"
             fi
@@ -137,11 +150,27 @@ list_templates() {
 }
 
 # =============================================================================
+# Função: Exibir versão detectada
+# =============================================================================
+show_version() {
+    detect_pve_version
+    echo ""
+    echo "Proxmox VE Template Script v${SCRIPT_VERSION}"
+    echo ""
+    printf "  %-25s %s\n" "Proxmox VE:" "${PVE_FULL_VERSION:-Não detectado}"
+    printf "  %-25s %s\n" "PVE Major:" "${PVE_MAJOR_VERSION:-N/A}"
+    printf "  %-25s %s\n" "QEMU:" "${QEMU_FULL_VERSION:-Não detectado}"
+    printf "  %-25s %s\n" "Método de importação:" "$(if pve_version_ge 8 1; then echo 'import-from (PVE 8.1+)'; else echo 'importdisk (legado)'; fi)"
+    echo ""
+}
+
+# =============================================================================
 # Validações iniciais
 # =============================================================================
 run_preflight_checks() {
     check_root
     check_proxmox
+    detect_pve_version
     check_dependencies
     check_storage "$STORAGE_POOL"
 
@@ -253,6 +282,10 @@ main() {
         list)
             run_preflight_checks
             list_templates
+            ;;
+
+        version|--version|-v)
+            show_version
             ;;
 
         help|--help|-h)

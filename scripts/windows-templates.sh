@@ -5,6 +5,8 @@
 # Este script contém as funções para criação de templates Windows Server no
 # Proxmox VE com suporte a Cloudbase-Init para automação de deploy.
 #
+# Compatibilidade: Proxmox VE 8.x e 9.x
+#
 # Versões suportadas:
 #   - Windows Server 2022 (Evaluation)
 #   - Windows Server 2025 (Evaluation)
@@ -24,13 +26,15 @@
 #   - https://computingforgeeks.com/windows-server-2022-template-proxmox/
 # =============================================================================
 
+# Variável global para armazenar o caminho da ISO do Windows encontrada
+WIN_ISO_PATH=""
+VIRTIO_ISO_PATH=""
+
 # =============================================================================
 # FUNÇÃO: Verificar pré-requisitos para templates Windows
 # =============================================================================
 check_windows_prerequisites() {
     local win_version="$1"  # "2022" ou "2025"
-    local iso_var="URL_WIN_${win_version}_ISO"
-    local iso_path
 
     # Verificar dependências
     if ! check_windows_dependencies; then
@@ -41,7 +45,9 @@ check_windows_prerequisites() {
     local iso_dir="/var/lib/vz/template/iso"
     local iso_found=false
 
-    for iso_file in "${iso_dir}"/windows*server*${win_version}*.iso "${iso_dir}"/WIN*${win_version}*.iso "${iso_dir}"/win*${win_version}*.iso; do
+    # Buscar ISO com padrões flexíveis (case-insensitive via shopt)
+    local iso_file
+    for iso_file in "${iso_dir}"/*"${win_version}"*.iso; do
         if [[ -f "$iso_file" ]]; then
             iso_found=true
             WIN_ISO_PATH="$iso_file"
@@ -61,7 +67,7 @@ check_windows_prerequisites() {
             log_error "     https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server-2025"
         fi
         log_error "  2. Copiar a ISO para: ${iso_dir}/"
-        log_error "  3. O nome do arquivo deve conter 'windows', 'server' e '${win_version}'"
+        log_error "  3. O nome do arquivo deve conter '${win_version}'"
         log_error "     Exemplo: windows-server-${win_version}-eval.iso"
         log_error ""
         return 1
@@ -105,7 +111,7 @@ generate_autounattend_xml() {
 
     log_info "Gerando autounattend.xml para Windows Server ${win_version}..."
 
-    cat > "$output_path" << 'XMLEOF'
+    cat > "$output_path" << XMLEOF
 <?xml version="1.0" encoding="utf-8"?>
 <unattend xmlns="urn:schemas-microsoft-com:unattend"
           xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
@@ -138,12 +144,19 @@ generate_autounattend_xml() {
                versionScope="nonSxS">
       <DriverPaths>
         <PathAndCredentials wcm:action="add" wcm:keyValue="1">
-XMLEOF
-
-    # Inserir o path correto do driver VirtIO
-    sed -i "s|</DriverPaths>|          <Path>E:\\\\vioscsi\\\\${virtio_driver_path}\\\\amd64</Path>\n        </PathAndCredentials>\n        <PathAndCredentials wcm:action=\"add\" wcm:keyValue=\"2\">\n          <Path>E:\\\\NetKVM\\\\${virtio_driver_path}\\\\amd64</Path>\n        </PathAndCredentials>\n        <PathAndCredentials wcm:action=\"add\" wcm:keyValue=\"3\">\n          <Path>E:\\\\Balloon\\\\${virtio_driver_path}\\\\amd64</Path>\n        </PathAndCredentials>\n        <PathAndCredentials wcm:action=\"add\" wcm:keyValue=\"4\">\n          <Path>E:\\\\viostor\\\\${virtio_driver_path}\\\\amd64</Path>\n        </PathAndCredentials>\n      </DriverPaths>|" "$output_path"
-
-    cat >> "$output_path" << 'XMLEOF'
+          <Path>E:\\vioscsi\\${virtio_driver_path}\\amd64</Path>
+        </PathAndCredentials>
+        <PathAndCredentials wcm:action="add" wcm:keyValue="2">
+          <Path>E:\\NetKVM\\${virtio_driver_path}\\amd64</Path>
+        </PathAndCredentials>
+        <PathAndCredentials wcm:action="add" wcm:keyValue="3">
+          <Path>E:\\Balloon\\${virtio_driver_path}\\amd64</Path>
+        </PathAndCredentials>
+        <PathAndCredentials wcm:action="add" wcm:keyValue="4">
+          <Path>E:\\viostor\\${virtio_driver_path}\\amd64</Path>
+        </PathAndCredentials>
+      </DriverPaths>
+    </component>
 
     <!-- Configuração do Setup (disco, partições, imagem) -->
     <component name="Microsoft-Windows-Setup"
@@ -257,7 +270,7 @@ XMLEOF
   </settings>
 
   <!-- ================================================================== -->
-  <!-- PASS 7: oobeSystem - Configuração do OOBE                         -->
+  <!-- PASS 7: oobeSystem - Configuração OOBE                             -->
   <!-- ================================================================== -->
   <settings pass="oobeSystem">
     <component name="Microsoft-Windows-Shell-Setup"
@@ -276,23 +289,22 @@ XMLEOF
 
       <UserAccounts>
         <AdministratorPassword>
-          <Value>AdminPass123!</Value>
+          <Value>${WIN_ADMIN_PASSWORD}</Value>
           <PlainText>true</PlainText>
         </AdministratorPassword>
       </UserAccounts>
 
       <AutoLogon>
         <Enabled>true</Enabled>
-        <Username>Administrator</Username>
+        <Username>${WIN_ADMIN_USER}</Username>
         <Password>
-          <Value>AdminPass123!</Value>
+          <Value>${WIN_ADMIN_PASSWORD}</Value>
           <PlainText>true</PlainText>
         </Password>
         <LogonCount>1</LogonCount>
       </AutoLogon>
 
-      <!-- Script de primeira inicialização: instala VirtIO Guest Agent,
-           Cloudbase-Init e executa Sysprep -->
+      <!-- Script de primeira inicialização: instala VirtIO Guest Agent -->
       <FirstLogonCommands>
         <SynchronousCommand wcm:action="add">
           <Order>1</Order>
@@ -343,9 +355,7 @@ generate_autounattend_iso() {
     cp "$xml_path" "${tmp_dir}/autounattend.xml"
 
     log_info "Gerando ISO do autounattend..."
-    genisoimage -o "$iso_output" -J -r "$tmp_dir" 2>/dev/null
-
-    if [[ $? -ne 0 ]]; then
+    if ! genisoimage -o "$iso_output" -J -r "$tmp_dir" 2>/dev/null; then
         log_error "Falha ao gerar ISO do autounattend."
         rm -rf "$tmp_dir"
         return 1
@@ -373,6 +383,7 @@ create_windows_template() {
 
     log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     log_info "Iniciando criação do template: ${name} (VMID: ${vmid})"
+    log_info "Proxmox VE: ${PVE_FULL_VERSION:-N/A} | QEMU: ${QEMU_FULL_VERSION:-N/A}"
     log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
     # -------------------------------------------------------------------------
@@ -412,23 +423,30 @@ create_windows_template() {
     # -------------------------------------------------------------------------
     log_info "[${name}] Criando VM base com hardware otimizado para Windows..."
 
-    qm create "$vmid" \
-        --name "$name" \
-        --ostype win11 \
-        --machine q35 \
-        --bios ovmf \
-        --efidisk0 "${STORAGE_POOL}:1,efitype=4m,pre-enrolled-keys=1" \
-        --tpmstate0 "${STORAGE_POOL}:1,version=v2.0" \
-        --cpu host \
-        --cores "$WIN_CORES" \
-        --memory "$WIN_MEMORY" \
-        --scsihw virtio-scsi-single \
-        --scsi0 "${STORAGE_POOL}:${WIN_DISK_SIZE},iothread=1,discard=on" \
-        --net0 "virtio,bridge=${BRIDGE_NET}" \
-        --description "$description" \
-        --tags "template,cloudbase-init,windows"
+    # Determinar o ostype adequado para a versão do Windows
+    # PVE 8/9: win11 é o tipo mais recente disponível para Windows Server 2022/2025
+    local win_ostype="win11"
 
-    if [[ $? -ne 0 ]]; then
+    # Montar argumentos de criação da VM
+    local create_args=(
+        "$vmid"
+        --name "$name"
+        --ostype "$win_ostype"
+        --machine q35
+        --bios ovmf
+        --efidisk0 "${STORAGE_POOL}:1,efitype=4m,pre-enrolled-keys=1"
+        --tpmstate0 "${STORAGE_POOL}:1,version=v2.0"
+        --cpu host
+        --cores "$WIN_CORES"
+        --memory "$WIN_MEMORY"
+        --scsihw virtio-scsi-single
+        --scsi0 "${STORAGE_POOL}:${WIN_DISK_SIZE},iothread=1,discard=on"
+        --net0 "virtio,bridge=${BRIDGE_NET}"
+        --description "$description"
+        --tags "template,cloudbase-init,windows,pve${PVE_MAJOR_VERSION:-8}"
+    )
+
+    if ! qm create "${create_args[@]}"; then
         log_error "[${name}] Falha ao criar a VM base."
         return 1
     fi
@@ -488,14 +506,6 @@ create_windows_template() {
     log_info "     C:\\Windows\\System32\\Sysprep\\sysprep.exe /generalize /oobe /shutdown"
     log_info ""
     log_info "  5. Após o shutdown, finalize o template:"
-    log_info "     qm set ${vmid} --delete ide0"
-    log_info "     qm set ${vmid} --delete ide1"
-    log_info "     qm set ${vmid} --delete ide2"
-    log_info "     qm set ${vmid} --ide2 ${STORAGE_POOL}:cloudinit"
-    log_info "     qm set ${vmid} --boot order=scsi0"
-    log_info "     qm template ${vmid}"
-    log_info ""
-    log_info "  Ou execute o script auxiliar:"
     log_info "     ./proxmox-templates.sh finalize-windows ${vmid}"
     log_info ""
 
@@ -545,9 +555,7 @@ finalize_windows_template() {
 
     # Converter para template
     log_info "Convertendo para template..."
-    qm template "$vmid"
-
-    if [[ $? -eq 0 ]]; then
+    if qm template "$vmid"; then
         log_info "Template Windows finalizado com sucesso! (VMID: ${vmid})"
     else
         log_error "Falha ao converter para template."
@@ -566,7 +574,7 @@ create_win_2022_template() {
         "$VMID_WIN_2022" \
         "win-server-2022-template" \
         "2022" \
-        "Windows Server 2022 - Cloudbase-Init Template | Criado em: $(date '+%Y-%m-%d')"
+        "Windows Server 2022 - Cloudbase-Init Template | PVE ${PVE_FULL_VERSION:-N/A} | Criado em: $(date '+%Y-%m-%d')"
 }
 
 create_win_2025_template() {
@@ -574,7 +582,7 @@ create_win_2025_template() {
         "$VMID_WIN_2025" \
         "win-server-2025-template" \
         "2025" \
-        "Windows Server 2025 - Cloudbase-Init Template | Criado em: $(date '+%Y-%m-%d')"
+        "Windows Server 2025 - Cloudbase-Init Template | PVE ${PVE_FULL_VERSION:-N/A} | Criado em: $(date '+%Y-%m-%d')"
 }
 
 # =============================================================================
@@ -589,6 +597,7 @@ create_all_windows_templates() {
     echo ""
 
     # Windows Server 2022
+    WIN_ISO_PATH=""
     if create_win_2022_template; then
         created+=("win-server-2022-template (VMID: ${VMID_WIN_2022})")
     else
@@ -601,6 +610,7 @@ create_all_windows_templates() {
     fi
 
     # Windows Server 2025
+    WIN_ISO_PATH=""
     if create_win_2025_template; then
         created+=("win-server-2025-template (VMID: ${VMID_WIN_2025})")
     else
@@ -640,7 +650,10 @@ create_all_windows_templates() {
 
     echo ""
 
+    # shellcheck disable=SC2034
     CREATED_WINDOWS_TEMPLATES=("${created[@]}")
+    # shellcheck disable=SC2034
     FAILED_WINDOWS_TEMPLATES=("${failed[@]}")
+    # shellcheck disable=SC2034
     SKIPPED_WINDOWS_TEMPLATES=("${skipped[@]}")
 }
