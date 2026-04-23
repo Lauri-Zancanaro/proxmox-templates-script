@@ -2,6 +2,28 @@
 
 Todas as mudanças notáveis neste projeto serão documentadas neste arquivo. O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.1.0] - 2026-04-23
+
+### Adicionado
+
+**Compatibilidade com Proxmox VE 8.x e 9.x:** Detecção automática da versão do Proxmox VE e QEMU em tempo de execução. O script identifica a versão do PVE (major/minor) e do QEMU, ajustando automaticamente os comandos e parâmetros utilizados. A função `pve_version_ge()` permite comparação de versões em qualquer ponto do código.
+
+**Importação de disco inteligente:** Nova função `import_disk_image()` que utiliza o método `import-from` do `qm set` (disponível a partir do PVE 8.1) ou o método legado `qm importdisk` (para PVE 8.0), garantindo compatibilidade total com todas as versões suportadas.
+
+**Validação de storages descontinuados:** O script agora verifica se o storage configurado é do tipo GlusterFS (removido no PVE 9) e emite um erro informativo antes de tentar criar templates.
+
+**Comando `version`:** Novo comando que exibe a versão do PVE e QEMU detectados, além do método de importação de disco que será utilizado.
+
+**Tags dinâmicas:** Os templates criados agora incluem uma tag com a versão do PVE (ex: `pve8`, `pve9`) para facilitar a identificação.
+
+### Corrigido
+
+**ShellCheck CI/CD:** Todos os warnings do ShellCheck (SC2034, SC2231) foram corrigidos. O workflow do GitHub Actions agora passa com sucesso em todos os scripts. As variáveis globais compartilhadas entre módulos receberam a diretiva `shellcheck disable=SC2034`, e a geração do `autounattend.xml` foi reescrita sem uso de `sed` intermediário.
+
+### Alterado
+
+O banner, o resumo de configuração e a documentação foram atualizados para refletir a compatibilidade com Proxmox VE 8.x e 9.x. A URL do repositório foi corrigida para `Lauri-Zancanaro/proxmox-templates-script`.
+
 ## [1.0.0] - 2026-04-23
 
 ### Adicionado
