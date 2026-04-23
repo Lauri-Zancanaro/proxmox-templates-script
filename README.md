@@ -90,7 +90,9 @@ Para criar um template específico (exemplo: apenas Ubuntu 24.04):
 
 A criação de templates Windows é um processo **semi-automatizado**, pois a Microsoft não fornece imagens Cloud prontas. O script automatiza grande parte do processo gerando um arquivo `autounattend.xml` [4].
 
-**Passos para Windows:**
+> Para um guia completo e detalhado com todas as etapas, configuração do Cloudbase-Init, Sysprep e troubleshooting, consulte a documentação dedicada: **[docs/WINDOWS-TEMPLATES.md](docs/WINDOWS-TEMPLATES.md)**.
+
+**Resumo dos passos:**
 1.  Baixe manualmente a ISO de avaliação do Windows Server desejado (2022 ou 2025) do Microsoft Evaluation Center.
 2.  Coloque a ISO no diretório de templates do Proxmox (padrão: `/var/lib/vz/template/iso/`). O nome do arquivo deve conter o ano ("2022" ou "2025").
 3.  Execute o script:
@@ -143,6 +145,12 @@ Este script incorpora diversas boas práticas consolidadas:
 ## CI/CD e Versionamento
 
 Este projeto inclui um workflow do GitHub Actions (`.github/workflows/shellcheck.yml`) que executa automaticamente o `shellcheck` em todos os scripts `.sh` a cada push ou pull request, garantindo a qualidade e segurança do código bash. Todos os scripts são validados para rodar sem warnings ou erros.
+
+## Documentação Adicional
+
+| Documento | Descrição |
+|-----------|----------|
+| [docs/WINDOWS-TEMPLATES.md](docs/WINDOWS-TEMPLATES.md) | Guia completo para criação de templates Windows Server (Cloudbase-Init, Sysprep, troubleshooting) |
 
 ## Referências
 
