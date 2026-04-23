@@ -142,6 +142,14 @@ Este script incorpora diversas boas práticas consolidadas:
 *   **Compatibilidade Multi-versão:** Adaptação automática de comandos (`import-from` vs `importdisk`) baseada na versão do Proxmox detectada.
 *   **Tratamento de Erros:** Validação de dependências, checagem de existência do Storage Pool e verificação de VMIDs em uso antes de qualquer operação destrutiva.
 
+## Versões e Changelog
+
+Atualmente o projeto está na versão **v1.1.0**. 
+
+Para ver o histórico completo de alterações, novas funcionalidades e correções de bugs de cada versão, consulte o arquivo **[CHANGELOG.md](CHANGELOG.md)**.
+
+As versões são publicadas utilizando o padrão de [Versionamento Semântico](https://semver.org/lang/pt-BR/). Você pode acompanhar as [Releases oficiais no GitHub](https://github.com/Lauri-Zancanaro/proxmox-templates-script/releases) para baixar versões estáveis específicas.
+
 ## CI/CD e Versionamento
 
 Este projeto inclui um workflow do GitHub Actions (`.github/workflows/shellcheck.yml`) que executa automaticamente o `shellcheck` em todos os scripts `.sh` a cada push ou pull request, garantindo a qualidade e segurança do código bash. Todos os scripts são validados para rodar sem warnings ou erros.
