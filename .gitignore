@@ -1,0 +1,23 @@
+# Imagens de disco baixadas
+*.img
+*.qcow2
+*.iso
+
+# Logs
+*.log
+
+# Arquivos temporários
+/tmp/
+*.tmp
+*.bak
+
+# Editor
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

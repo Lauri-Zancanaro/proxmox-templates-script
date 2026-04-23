@@ -1,0 +1,39 @@
+name: ShellCheck Lint
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - '**.sh'
+      - '**.env'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - '**.sh'
+      - '**.env'
+
+jobs:
+  shellcheck:
+    name: ShellCheck Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Run ShellCheck on all scripts
+        run: |
+          echo "=== Running ShellCheck ==="
+          find . -name "*.sh" -type f | while read -r script; do
+            echo "Checking: ${script}"
+            shellcheck --severity=warning --shell=bash "$script" || exit 1
+          done
+          echo "=== All scripts passed ShellCheck ==="
+
+      - name: Validate config.env syntax
+        run: |
+          echo "=== Validating config.env ==="
+          bash -n config.env && echo "config.env: OK" || exit 1
