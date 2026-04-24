@@ -272,8 +272,9 @@ check_vmid_is_template() {
 # =============================================================================
 
 # Importa um disco de cloud image para uma VM.
-# Em PVE 8.1+ e PVE 9.x usa a sintaxe import-from do qm set.
-# Em PVE 8.0 usa o comando legado qm importdisk + qm set.
+# Usa o comando qm importdisk (compatível com PVE 8.x e 9.x em todos os
+# tipos de storage, incluindo RBD/Ceph, LVM, ZFS, NFS, etc.).
+# Após a importação, anexa o disco ao barramento especificado com discard=on.
 import_disk_image() {
     local vmid="$1"
     local image_path="$2"
@@ -282,28 +283,38 @@ import_disk_image() {
 
     log_info "[VMID:${vmid}] Importando disco de '$(basename "$image_path")' para storage '${storage}'..."
 
-    # PVE 8.1+ e PVE 9.x suportam import-from nativamente no qm set
-    if pve_version_ge 8 1; then
-        log_debug "Usando método import-from (PVE ${PVE_FULL_VERSION})..."
-        if ! qm set "$vmid" --"${disk_bus}" "${storage}:0,import-from=${image_path},discard=on"; then
-            log_error "[VMID:${vmid}] Falha ao importar disco via import-from."
-            return 1
-        fi
-    else
-        # Método legado para PVE 8.0
-        log_debug "Usando método legado qm importdisk (PVE ${PVE_FULL_VERSION})..."
-        if ! qm importdisk "$vmid" "$image_path" "$storage"; then
-            log_error "[VMID:${vmid}] Falha ao importar disco via importdisk."
-            return 1
-        fi
-        # Após importdisk, o disco fica como 'unused0'. Precisamos anexá-lo.
-        if ! qm set "$vmid" --"${disk_bus}" "${storage}:vm-${vmid}-disk-0,discard=on"; then
-            log_error "[VMID:${vmid}] Falha ao anexar disco importado."
-            return 1
-        fi
+    # Validar que o arquivo de imagem existe e não está vazio
+    if [[ ! -f "$image_path" ]]; then
+        log_error "[VMID:${vmid}] Arquivo de imagem não encontrado: ${image_path}"
+        return 1
     fi
 
-    log_info "[VMID:${vmid}] Disco importado com sucesso."
+    local file_size
+    file_size=$(stat -c%s "$image_path" 2>/dev/null || echo "0")
+    if [[ "$file_size" -lt 1048576 ]]; then
+        log_error "[VMID:${vmid}] Arquivo de imagem muito pequeno (${file_size} bytes). Download pode ter falhado."
+        return 1
+    fi
+    log_debug "[VMID:${vmid}] Imagem validada: $(basename "$image_path") (${file_size} bytes)"
+
+    # Passo 1: Importar o disco usando qm importdisk
+    # Este método é universal e funciona em todos os tipos de storage
+    log_info "[VMID:${vmid}] Executando: qm importdisk ${vmid} $(basename "$image_path") ${storage}"
+    if ! qm importdisk "$vmid" "$image_path" "$storage"; then
+        log_error "[VMID:${vmid}] Falha ao importar disco via qm importdisk."
+        return 1
+    fi
+
+    # Passo 2: Anexar o disco importado ao barramento da VM
+    # Após o importdisk, o disco fica como 'unused0' e precisa ser anexado.
+    # O nome do disco segue o padrão vm-<VMID>-disk-0
+    log_info "[VMID:${vmid}] Anexando disco ao barramento ${disk_bus} com discard=on..."
+    if ! qm set "$vmid" --"${disk_bus}" "${storage}:vm-${vmid}-disk-0,discard=on"; then
+        log_error "[VMID:${vmid}] Falha ao anexar disco importado."
+        return 1
+    fi
+
+    log_info "[VMID:${vmid}] Disco importado e anexado com sucesso."
     return 0
 }
 

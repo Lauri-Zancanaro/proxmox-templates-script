@@ -43,7 +43,7 @@
 set -euo pipefail
 
 # Versão do script
-readonly SCRIPT_VERSION="1.1.0"
+readonly SCRIPT_VERSION="1.1.1"
 
 # Diretório base do script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -160,7 +160,7 @@ show_version() {
     printf "  %-25s %s\n" "Proxmox VE:" "${PVE_FULL_VERSION:-Não detectado}"
     printf "  %-25s %s\n" "PVE Major:" "${PVE_MAJOR_VERSION:-N/A}"
     printf "  %-25s %s\n" "QEMU:" "${QEMU_FULL_VERSION:-Não detectado}"
-    printf "  %-25s %s\n" "Método de importação:" "$(if pve_version_ge 8 1; then echo 'import-from (PVE 8.1+)'; else echo 'importdisk (legado)'; fi)"
+    printf "  %-25s %s\n" "Método de importação:" "qm importdisk (universal PVE 8.x/9.x)"
     echo ""
 }
 

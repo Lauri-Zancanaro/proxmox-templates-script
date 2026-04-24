@@ -2,6 +2,16 @@
 
 Todas as mudanças notáveis neste projeto serão documentadas neste arquivo. O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.1.1] - 2026-04-23
+
+### Corrigido
+
+**Importação de disco em storage RBD/Ceph:** Corrigido o erro `scsi0: invalid format - missing key in comma-separated list property` que impedia a criação de todos os templates Linux. A função `import_disk_image()` foi reescrita para usar o comando `qm importdisk` (universal e compatível com todos os tipos de storage: RBD, LVM, ZFS, NFS, etc.) seguido de `qm set` para anexar o disco, substituindo a sintaxe `import-from` do `qm set` que falhava em storages RBD/Ceph no PVE 9.x.
+
+### Adicionado
+
+**Validação de imagem pré-importação:** Antes de importar o disco, o script agora verifica se o arquivo de imagem existe e se o tamanho é superior a 1MB, detectando downloads corrompidos ou incompletos antes de tentar a importação.
+
 ## [1.1.0] - 2026-04-23
 
 ### Adicionado
