@@ -2,6 +2,12 @@
 
 Todas as mudanças notáveis neste projeto serão documentadas neste arquivo. O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.1.2] - 2026-04-23
+
+### Corrigido
+
+**Logs poluindo stdout e quebrando captura de retorno de funções:** A função `log()` enviava mensagens para stdout, o que causava a contaminação da variável `image_path` quando `download_image()` era chamada via command substitution `$(...)`. O resultado era que o caminho do arquivo ficava precedido por linhas de log, fazendo com que o teste `-f` (arquivo existe) falhasse com `Arquivo de imagem não encontrado`. A correção redireciona toda a saída de log para **stderr** (`>&2`), mantendo o stdout limpo para retornos de funções.
+
 ## [1.1.1] - 2026-04-23
 
 ### Corrigido

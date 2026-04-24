@@ -55,8 +55,8 @@ log() {
             ERROR) color="$COLOR_RED"    ;;
         esac
 
-        # Saída no terminal
-        echo -e "${color}[${timestamp}] [${level}]${COLOR_NC} ${message}"
+        # Saída no terminal (stderr para não poluir stdout de funções com retorno)
+        echo -e "${color}[${timestamp}] [${level}]${COLOR_NC} ${message}" >&2
 
         # Saída no arquivo de log (sem cores)
         if [[ -n "${LOG_FILE:-}" ]]; then
