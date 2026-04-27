@@ -470,8 +470,8 @@ create_windows_template() {
     # Configurar boot para CD-ROM primeiro
     qm set "$vmid" --boot "order=ide0;scsi0"
 
-    # Configurar display
-    qm set "$vmid" --vga qxl
+    # Configurar display (VNC - compatível com noVNC do Proxmox Web UI)
+    qm set "$vmid" --vga std
 
     # Habilitar QEMU Guest Agent
     qm set "$vmid" --agent enabled=1

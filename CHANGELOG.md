@@ -2,6 +2,12 @@
 
 Todas as mudanças notáveis neste projeto serão documentadas neste arquivo. O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.1.4] - 2026-04-27
+
+### Corrigido
+
+**Display configurado como QXL (SPICE) ao invés de VNC:** O script usava `--vga qxl` que requer SPICE client para acesso ao console. Alterado para `--vga std` que é compatível com o **noVNC** integrado na Web UI do Proxmox, eliminando a necessidade de software adicional para acessar o console das VMs Windows.
+
 ## [1.1.3] - 2026-04-27
 
 ### Corrigido
