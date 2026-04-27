@@ -442,6 +442,8 @@ create_windows_template() {
         --scsihw virtio-scsi-single
         --scsi0 "${STORAGE_POOL}:${WIN_DISK_SIZE},iothread=1,discard=on"
         --net0 "virtio,bridge=${BRIDGE_NET}"
+        --serial0 socket
+        --serial1 socket
         --description "$description"
         --tags "template,cloudbase-init,windows,pve${PVE_MAJOR_VERSION:-8}"
     )

@@ -2,6 +2,12 @@
 
 Todas as mudanças notáveis neste projeto serão documentadas neste arquivo. O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.1.3] - 2026-04-27
+
+### Corrigido
+
+**Interface serial ausente nos templates Windows:** A criação de VMs Windows não incluía as portas seriais (`--serial0 socket` e `--serial1 socket`), que são necessárias para o Cloudbase-Init se comunicar com o Proxmox via Cloud-Init (porta COM1). Sem a interface serial, o Cloudbase-Init não conseguia receber as configurações de rede, hostname e credenciais. A correção adiciona ambas as portas seriais automaticamente na função `create_windows_template()`.
+
 ## [1.1.2] - 2026-04-23
 
 ### Corrigido
