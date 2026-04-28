@@ -129,6 +129,31 @@ create_linux_template() {
             agent_opts="enabled=1,fstrim_cloned_disks=1"
         fi
         qm set "$vmid" --agent "$agent_opts"
+
+        # Criar snippet Cloud-Init para instalar qemu-guest-agent no primeiro boot
+        local snippets_dir="/var/lib/vz/snippets"
+        local snippet_file="${snippets_dir}/qemu-guest-agent.yaml"
+
+        if [[ ! -d "$snippets_dir" ]]; then
+            mkdir -p "$snippets_dir"
+        fi
+
+        if [[ ! -f "$snippet_file" ]]; then
+            log_info "[${name}] Criando snippet Cloud-Init para instalar qemu-guest-agent..."
+            cat > "$snippet_file" << 'CLOUDINIT_EOF'
+#cloud-config
+package_update: true
+packages:
+  - qemu-guest-agent
+runcmd:
+  - systemctl enable qemu-guest-agent
+  - systemctl start qemu-guest-agent
+CLOUDINIT_EOF
+        fi
+
+        # Aplicar snippet como vendor config via cicustom
+        log_info "[${name}] Aplicando snippet cicustom para instalação automática do qemu-guest-agent..."
+        qm set "$vmid" --cicustom "vendor=local:snippets/qemu-guest-agent.yaml"
     fi
 
     # -------------------------------------------------------------------------

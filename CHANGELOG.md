@@ -2,6 +2,12 @@
 
 Todas as mudanças notáveis neste projeto serão documentadas neste arquivo. O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.2.0] - 2026-04-28
+
+### Adicionado
+
+**Instalação automática do qemu-guest-agent nos templates Linux:** O script agora cria um snippet Cloud-Init (`/var/lib/vz/snippets/qemu-guest-agent.yaml`) e o aplica via `--cicustom vendor=local:snippets/qemu-guest-agent.yaml`. Isso garante que o pacote `qemu-guest-agent` seja instalado e habilitado automaticamente no primeiro boot de qualquer VM clonada a partir dos templates Linux. Anteriormente, o script apenas habilitava a opção `--agent enabled=1` na configuração da VM (lado Proxmox), mas o pacote não era instalado dentro do sistema operacional, resultando no agente inativo.
+
 ## [1.1.4] - 2026-04-27
 
 ### Corrigido
