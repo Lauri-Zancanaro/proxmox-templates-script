@@ -17,6 +17,7 @@
 #   linux               Cria todos os templates Linux
 #   windows             Cria todos os templates Windows Server
 #   ubuntu-2404         Cria apenas o template Ubuntu 24.04
+#   ubuntu-2604         Cria apenas o template Ubuntu 26.04
 #   debian-12           Cria apenas o template Debian 12
 #   debian-13           Cria apenas o template Debian 13
 #   centos-stream9      Cria apenas o template CentOS Stream 9
@@ -33,6 +34,7 @@
 #   ./proxmox-templates.sh all
 #   ./proxmox-templates.sh linux
 #   ./proxmox-templates.sh ubuntu-2404
+#   ./proxmox-templates.sh ubuntu-2604
 #   ./proxmox-templates.sh finalize-windows 9007
 #
 # Autor: mecloud360
@@ -43,7 +45,7 @@
 set -euo pipefail
 
 # Versão do script
-readonly SCRIPT_VERSION="1.2.0"
+readonly SCRIPT_VERSION="1.3.0"
 
 # Diretório base do script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -91,6 +93,7 @@ show_help() {
     printf "  %-25s %s\n" "windows" "Cria todos os templates Windows Server"
     printf "  %-25s %s\n" "" ""
     printf "  %-25s %s\n" "ubuntu-2404" "Cria template Ubuntu 24.04 LTS (VMID: ${VMID_UBUNTU_2404})"
+    printf "  %-25s %s\n" "ubuntu-2604" "Cria template Ubuntu 26.04 LTS (VMID: ${VMID_UBUNTU_2604})"
     printf "  %-25s %s\n" "debian-12" "Cria template Debian 12 Bookworm (VMID: ${VMID_DEBIAN_12})"
     printf "  %-25s %s\n" "debian-13" "Cria template Debian 13 Trixie (VMID: ${VMID_DEBIAN_13})"
     printf "  %-25s %s\n" "centos-stream9" "Cria template CentOS Stream 9 (VMID: ${VMID_CENTOS_STREAM_9})"
@@ -120,6 +123,7 @@ list_templates() {
     # Iterar sobre todos os VMIDs de template configurados
     local vmids=(
         "$VMID_UBUNTU_2404"
+        "$VMID_UBUNTU_2604"
         "$VMID_DEBIAN_12"
         "$VMID_DEBIAN_13"
         "$VMID_CENTOS_STREAM_9"
@@ -230,6 +234,12 @@ main() {
             run_preflight_checks
             show_config_summary
             create_ubuntu_2404_template
+            ;;
+
+        ubuntu-2604)
+            run_preflight_checks
+            show_config_summary
+            create_ubuntu_2604_template
             ;;
 
         debian-12)

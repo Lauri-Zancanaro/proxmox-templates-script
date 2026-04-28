@@ -2,6 +2,12 @@
 
 Todas as mudanças notáveis neste projeto serão documentadas neste arquivo. O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.3.0] - 2026-04-28
+
+### Adicionado
+
+**Suporte ao Ubuntu 26.04 LTS (Resolute Raccoon):** Adicionado novo template para a versão mais recente do Ubuntu Server LTS, lançada pela Canonical em abril de 2026. A cloud image é obtida de `https://cloud-images.ubuntu.com/resolute/current/resolute-server-cloudimg-amd64.img`. O template utiliza VMID 9009 e segue o mesmo padrão de configuração dos demais templates Linux (Cloud-Init, qemu-guest-agent via cicustom, VirtIO SCSI).
+
 ## [1.2.0] - 2026-04-28
 
 ### Adicionado

@@ -17,6 +17,7 @@ O script orquestra o download, configuração de hardware, injeção de credenci
 | Sistema Operacional | VMID Padrão | Método de Automação | Formato da Imagem |
 |---------------------|-------------|---------------------|-------------------|
 | Ubuntu 24.04 LTS    | 9001        | Cloud-Init          | .img (qcow2)      |
+| Ubuntu 26.04 LTS    | 9009        | Cloud-Init          | .img (qcow2)      |
 | Debian 12           | 9002        | Cloud-Init          | .qcow2            |
 | Debian 13           | 9003        | Cloud-Init          | .qcow2            |
 | CentOS Stream 9     | 9004        | Cloud-Init          | .qcow2            |
@@ -144,7 +145,7 @@ Este script incorpora diversas boas práticas consolidadas:
 
 ## Versões e Changelog
 
-Atualmente o projeto está na versão **v1.2.0**. 
+Atualmente o projeto está na versão **v1.3.0**. 
 
 Para ver o histórico completo de alterações, novas funcionalidades e correções de bugs de cada versão, consulte o arquivo **[CHANGELOG.md](CHANGELOG.md)**.
 

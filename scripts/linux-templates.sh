@@ -9,6 +9,7 @@
 #
 # Distribuições suportadas:
 #   - Ubuntu 24.04 LTS (Noble Numbat)
+#   - Ubuntu 26.04 LTS (Resolute Raccoon)
 #   - Debian 12 (Bookworm)
 #   - Debian 13 (Trixie)
 #   - CentOS Stream 9
@@ -228,6 +229,15 @@ create_ubuntu_2404_template() {
         "Ubuntu 24.04 LTS (Noble Numbat) - Cloud-Init Template | PVE ${PVE_FULL_VERSION:-N/A} | Criado em: $(date '+%Y-%m-%d')"
 }
 
+create_ubuntu_2604_template() {
+    create_linux_template \
+        "$VMID_UBUNTU_2604" \
+        "ubuntu-2604-template" \
+        "$URL_UBUNTU_2604" \
+        "l26" \
+        "Ubuntu 26.04 LTS (Resolute Raccoon) - Cloud-Init Template | PVE ${PVE_FULL_VERSION:-N/A} | Criado em: $(date '+%Y-%m-%d')"
+}
+
 create_debian_12_template() {
     create_linux_template \
         "$VMID_DEBIAN_12" \
@@ -288,6 +298,13 @@ create_all_linux_templates() {
         created+=("ubuntu-2404-template (VMID: ${VMID_UBUNTU_2404})")
     else
         failed+=("ubuntu-2404-template (VMID: ${VMID_UBUNTU_2404})")
+    fi
+
+    # Ubuntu 26.04
+    if create_ubuntu_2604_template; then
+        created+=("ubuntu-2604-template (VMID: ${VMID_UBUNTU_2604})")
+    else
+        failed+=("ubuntu-2604-template (VMID: ${VMID_UBUNTU_2604})")
     fi
 
     # Debian 12
