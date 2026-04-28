@@ -298,12 +298,18 @@ import_disk_image() {
     log_debug "[VMID:${vmid}] Imagem validada: $(basename "$image_path") (${file_size} bytes)"
 
     # Passo 1: Importar o disco usando qm importdisk
-    # Este método é universal e funciona em todos os tipos de storage
+    # Este método é universal e funciona em todos os tipos de storage.
+    # O output do qm importdisk (barra de progresso) é redirecionado para stderr
+    # para não poluir stdout caso esta função seja chamada via $().
+    local import_output
     log_info "[VMID:${vmid}] Executando: qm importdisk ${vmid} $(basename "$image_path") ${storage}"
-    if ! qm importdisk "$vmid" "$image_path" "$storage"; then
+    if ! import_output=$(qm importdisk "$vmid" "$image_path" "$storage" 2>&1); then
         log_error "[VMID:${vmid}] Falha ao importar disco via qm importdisk."
+        log_error "[VMID:${vmid}] Output: ${import_output}"
         return 1
     fi
+    # Mostrar output da importação no log (via stderr)
+    echo "$import_output" >&2
 
     # Passo 2: Anexar o disco importado ao barramento da VM
     # Após o importdisk, o disco fica como 'unused0' e precisa ser anexado.
@@ -347,7 +353,11 @@ download_image() {
     local retry=0
 
     while [[ $retry -lt $max_retries ]]; do
-        if wget -q --show-progress --progress=bar:force -O "$dest_path" "$url" 2>&1; then
+        # wget: -q silencia output padrão, --show-progress mostra barra de progresso
+        # A barra de progresso do wget vai para stderr por padrão.
+        # NÃO usar 2>&1 aqui, pois isso redirecionaria a barra de progresso
+        # para stdout, poluindo a captura via $() no chamador.
+        if wget -q --show-progress --progress=bar:force -O "$dest_path" "$url"; then
             log_info "Download concluído: ${filename}"
             echo "$dest_path"
             return 0

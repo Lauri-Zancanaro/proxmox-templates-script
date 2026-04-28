@@ -2,6 +2,14 @@
 
 Todas as mudanças notáveis neste projeto serão documentadas neste arquivo. O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.3.1] - 2026-04-28
+
+### Corrigido
+
+**Correção crítica na função download_image (wget poluindo stdout):** O comando wget usava `2>&1` que redirecionava a barra de progresso (stderr) para stdout. Quando a função era chamada via `image_path=$(download_image ...)`, toda a barra de progresso era capturada junto com o caminho do arquivo, causando `Argument list too long` no `basename` e falha na validação do arquivo com `-f`. Removido o `2>&1` para manter stdout limpo.
+
+**Correção na função import_disk_image (output do qm importdisk):** O output do `qm importdisk` agora é capturado em variável e redirecionado para stderr, evitando poluição do stdout. Em caso de falha, o output completo do comando é exibido no log de erro para facilitar o diagnóstico.
+
 ## [1.3.0] - 2026-04-28
 
 ### Adicionado
