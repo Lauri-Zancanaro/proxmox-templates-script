@@ -132,10 +132,26 @@ create_linux_template() {
         qm set "$vmid" --agent "$agent_opts"
 
         # Criar snippet Cloud-Init para instalar qemu-guest-agent no primeiro boot
-        local snippets_dir="/var/lib/vz/snippets"
+        # Usar storage compartilhado para que o snippet esteja disponível em todos os nós
+        local snippet_storage="${SNIPPETS_STORAGE:-${STORAGE_POOL}}"
+        local snippets_dir
+        snippets_dir=$(pvesm path "${snippet_storage}:snippets/" 2>/dev/null | sed 's|/snippets/$||' || echo "")
+
+        # Fallback: obter o caminho base do storage via pvesm status
+        if [[ -z "$snippets_dir" ]]; then
+            snippets_dir=$(pvesm path "${snippet_storage}:" 2>/dev/null || echo "")
+            if [[ -n "$snippets_dir" ]]; then
+                snippets_dir="${snippets_dir}/snippets"
+            else
+                # Fallback final: tentar caminho padrão para CephFS
+                snippets_dir="/mnt/pve/${snippet_storage}/snippets"
+            fi
+        fi
+
         local snippet_file="${snippets_dir}/qemu-guest-agent.yaml"
 
         if [[ ! -d "$snippets_dir" ]]; then
+            log_info "[${name}] Criando diretório de snippets: ${snippets_dir}"
             mkdir -p "$snippets_dir"
         fi
 
@@ -152,9 +168,9 @@ runcmd:
 CLOUDINIT_EOF
         fi
 
-        # Aplicar snippet como vendor config via cicustom
-        log_info "[${name}] Aplicando snippet cicustom para instalação automática do qemu-guest-agent..."
-        qm set "$vmid" --cicustom "vendor=local:snippets/qemu-guest-agent.yaml"
+        # Aplicar snippet como vendor config via cicustom usando storage compartilhado
+        log_info "[${name}] Aplicando snippet cicustom (storage: ${snippet_storage}) para instalação automática do qemu-guest-agent..."
+        qm set "$vmid" --cicustom "vendor=${snippet_storage}:snippets/qemu-guest-agent.yaml"
     fi
 
     # -------------------------------------------------------------------------

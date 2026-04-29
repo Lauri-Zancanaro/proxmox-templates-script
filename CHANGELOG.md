@@ -2,6 +2,16 @@
 
 Todas as mudanças notáveis neste projeto serão documentadas neste arquivo. O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.3.3] - 2026-04-29
+
+### Corrigido
+
+**Correção do erro 'volume local:snippets/qemu-guest-agent.yaml does not exist' ao clonar templates:** O snippet Cloud-Init para instalação do qemu-guest-agent era armazenado no storage `local`, que é específico de cada nó. Em clusters multi-nó, ao clonar o template em outro nó, o snippet não era encontrado. Agora o snippet é armazenado no storage compartilhado configurado em `SNIPPETS_STORAGE` (padrão: `cephfs-lvm`), garantindo disponibilidade em todos os nós do cluster.
+
+### Adicionado
+
+**Nova variável `SNIPPETS_STORAGE` no config.env:** Permite configurar qual storage compartilhado será usado para armazenar os snippets Cloud-Init. O storage deve ter o content type `snippets` habilitado (`pvesm set <storage> --content images,rootdir,snippets`).
+
 ## [1.3.2] - 2026-04-28
 
 ### Corrigido
