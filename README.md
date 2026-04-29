@@ -145,7 +145,7 @@ Este script incorpora diversas boas práticas consolidadas:
 
 ## Versões e Changelog
 
-Atualmente o projeto está na versão **v1.3.1**. 
+Atualmente o projeto está na versão **v1.3.2**. 
 
 Para ver o histórico completo de alterações, novas funcionalidades e correções de bugs de cada versão, consulte o arquivo **[CHANGELOG.md](CHANGELOG.md)**.
 

@@ -2,6 +2,16 @@
 
 Todas as mudanças notáveis neste projeto serão documentadas neste arquivo. O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.3.2] - 2026-04-28
+
+### Corrigido
+
+**Correção do erro 'shrinking disks is not supported' no PVE 9.x:** O script tentava redimensionar o disco para o tamanho configurado em `LINUX_DISK_RESIZE` sem verificar se o disco atual já era maior. No PVE 9.x, o `qm disk resize` retorna erro fatal ao tentar diminuir um disco. Agora o script obtém o tamanho atual do disco via `qm config`, compara com o tamanho desejado e só executa o resize se o disco atual for menor.
+
+### Alterado
+
+**Tamanho padrão de disco aumentado de 8G para 32G:** O valor padrão de `LINUX_DISK_RESIZE` no `config.env` foi aumentado de 8G para 32G, pois várias cloud images (CentOS, Rocky) já possuem discos virtuais maiores que 8G.
+
 ## [1.3.1] - 2026-04-28
 
 ### Corrigido

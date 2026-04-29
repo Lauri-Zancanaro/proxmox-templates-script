@@ -189,9 +189,32 @@ CLOUDINIT_EOF
     # Passo 10: Redimensionar disco (se configurado)
     # -------------------------------------------------------------------------
     if [[ -n "$LINUX_DISK_RESIZE" ]]; then
-        log_info "[${name}] Redimensionando disco para ${LINUX_DISK_RESIZE}..."
-        qm disk resize "$vmid" scsi0 "$LINUX_DISK_RESIZE" 2>/dev/null || \
-            log_debug "[${name}] Disco já é maior que ${LINUX_DISK_RESIZE} (OK)."
+        # Obter o tamanho atual do disco em bytes para comparar
+        local current_size_bytes
+        current_size_bytes=$(qm config "$vmid" | grep '^scsi0' | grep -oP 'size=\K[0-9]+[KMGT]?' || echo "0")
+        
+        # Converter tamanho desejado para número em GB
+        local desired_gb
+        desired_gb=$(echo "$LINUX_DISK_RESIZE" | grep -oP '^[0-9]+')
+        
+        # Converter tamanho atual para GB para comparação
+        local current_gb=0
+        if [[ "$current_size_bytes" =~ ^([0-9]+)G$ ]]; then
+            current_gb="${BASH_REMATCH[1]}"
+        elif [[ "$current_size_bytes" =~ ^([0-9]+)T$ ]]; then
+            current_gb=$(( ${BASH_REMATCH[1]} * 1024 ))
+        elif [[ "$current_size_bytes" =~ ^([0-9]+)M$ ]]; then
+            current_gb=1  # Menor que 1G, resize seguro
+        fi
+        
+        if [[ "$current_gb" -lt "$desired_gb" ]]; then
+            log_info "[${name}] Redimensionando disco de ${current_size_bytes:-desconhecido} para ${LINUX_DISK_RESIZE}..."
+            if ! qm disk resize "$vmid" scsi0 "$LINUX_DISK_RESIZE" 2>&1 | tee /dev/stderr; then
+                log_warn "[${name}] Falha ao redimensionar disco. Continuando com tamanho atual."
+            fi
+        else
+            log_info "[${name}] Disco atual (${current_size_bytes}) já é >= ${LINUX_DISK_RESIZE}. Pulando resize."
+        fi
     fi
 
     # -------------------------------------------------------------------------
