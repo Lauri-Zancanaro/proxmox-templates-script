@@ -23,6 +23,8 @@ O script orquestra o download, configuração de hardware, injeção de credenci
 | CentOS Stream 9     | 9004        | Cloud-Init          | .qcow2            |
 | Rocky Linux 8       | 9005        | Cloud-Init          | .qcow2            |
 | Rocky Linux 9       | 9006        | Cloud-Init          | .qcow2            |
+| Oracle Linux 8.10   | 9010        | Cloud-Init          | .qcow2            |
+| Oracle Linux 9.8    | 9011        | Cloud-Init          | .qcow2            |
 | Windows Server 2022 | 9007        | Cloudbase-Init      | Instalação ISO    |
 | Windows Server 2025 | 9008        | Cloudbase-Init      | Instalação ISO    |
 
@@ -145,7 +147,7 @@ Este script incorpora diversas boas práticas consolidadas:
 
 ## Versões e Changelog
 
-Atualmente o projeto está na versão **v1.3.3**. 
+Atualmente o projeto está na versão **v1.4.0**. 
 
 Para ver o histórico completo de alterações, novas funcionalidades e correções de bugs de cada versão, consulte o arquivo **[CHANGELOG.md](CHANGELOG.md)**.
 

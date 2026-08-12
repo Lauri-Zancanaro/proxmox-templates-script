@@ -2,6 +2,16 @@
 
 Todas as mudanças notáveis neste projeto serão documentadas neste arquivo. O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.4.0] - 2026-08-12
+
+### Adicionado
+
+**Suporte a Oracle Linux 8.10 e 9.8:** Adicionados dois novos templates para Oracle Linux, utilizando as cloud images oficiais KVM da Oracle (yum.oracle.com). Os templates utilizam VMIDs 9010 (OL8) e 9011 (OL9), kernel UEK7 e seguem o mesmo padrão de configuração dos demais templates Linux.
+
+- **Oracle Linux 8.10** (VMID 9010): `OL8U10_x86_64-kvm-b287.qcow2`
+- **Oracle Linux 9.8** (VMID 9011): `OL9U8_x86_64-kvm-b293.qcow2`
+- Novos comandos: `./proxmox-templates.sh oracle-8` e `./proxmox-templates.sh oracle-9`
+
 ## [1.3.3] - 2026-04-29
 
 ### Corrigido

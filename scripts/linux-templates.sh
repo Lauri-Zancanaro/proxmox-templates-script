@@ -15,6 +15,8 @@
 #   - CentOS Stream 9
 #   - Rocky Linux 8
 #   - Rocky Linux 9
+#   - Oracle Linux 8.10
+#   - Oracle Linux 9.8
 #
 # Referências:
 #   - https://pve.proxmox.com/wiki/Cloud-Init_Support
@@ -322,6 +324,24 @@ create_rocky_9_template() {
         "Rocky Linux 9 - Cloud-Init Template | PVE ${PVE_FULL_VERSION:-N/A} | Criado em: $(date '+%Y-%m-%d')"
 }
 
+create_oracle_8_template() {
+    create_linux_template \
+        "$VMID_ORACLE_8" \
+        "oracle-8-template" \
+        "$URL_ORACLE_8" \
+        "l26" \
+        "Oracle Linux 8.10 (UEK7) - Cloud-Init Template | PVE ${PVE_FULL_VERSION:-N/A} | Criado em: $(date '+%Y-%m-%d')"
+}
+
+create_oracle_9_template() {
+    create_linux_template \
+        "$VMID_ORACLE_9" \
+        "oracle-9-template" \
+        "$URL_ORACLE_9" \
+        "l26" \
+        "Oracle Linux 9.8 (UEK7) - Cloud-Init Template | PVE ${PVE_FULL_VERSION:-N/A} | Criado em: $(date '+%Y-%m-%d')"
+}
+
 # =============================================================================
 # FUNÇÃO: Criar todos os templates Linux
 # =============================================================================
@@ -379,6 +399,20 @@ create_all_linux_templates() {
         created+=("rocky-9-template (VMID: ${VMID_ROCKY_9})")
     else
         failed+=("rocky-9-template (VMID: ${VMID_ROCKY_9})")
+    fi
+
+    # Oracle Linux 8
+    if create_oracle_8_template; then
+        created+=("oracle-8-template (VMID: ${VMID_ORACLE_8})")
+    else
+        failed+=("oracle-8-template (VMID: ${VMID_ORACLE_8})")
+    fi
+
+    # Oracle Linux 9
+    if create_oracle_9_template; then
+        created+=("oracle-9-template (VMID: ${VMID_ORACLE_9})")
+    else
+        failed+=("oracle-9-template (VMID: ${VMID_ORACLE_9})")
     fi
 
     # Resumo

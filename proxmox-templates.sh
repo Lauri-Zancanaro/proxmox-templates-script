@@ -45,7 +45,7 @@
 set -euo pipefail
 
 # Versão do script
-readonly SCRIPT_VERSION="1.3.3"
+readonly SCRIPT_VERSION="1.4.0"
 
 # Diretório base do script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -99,6 +99,8 @@ show_help() {
     printf "  %-25s %s\n" "centos-stream9" "Cria template CentOS Stream 9 (VMID: ${VMID_CENTOS_STREAM_9})"
     printf "  %-25s %s\n" "rocky-8" "Cria template Rocky Linux 8 (VMID: ${VMID_ROCKY_8})"
     printf "  %-25s %s\n" "rocky-9" "Cria template Rocky Linux 9 (VMID: ${VMID_ROCKY_9})"
+    printf "  %-25s %s\n" "oracle-8" "Cria template Oracle Linux 8 (VMID: ${VMID_ORACLE_8})"
+    printf "  %-25s %s\n" "oracle-9" "Cria template Oracle Linux 9 (VMID: ${VMID_ORACLE_9})"
     printf "  %-25s %s\n" "win-2022" "Cria template Windows Server 2022 (VMID: ${VMID_WIN_2022})"
     printf "  %-25s %s\n" "win-2025" "Cria template Windows Server 2025 (VMID: ${VMID_WIN_2025})"
     printf "  %-25s %s\n" "" ""
@@ -129,6 +131,8 @@ list_templates() {
         "$VMID_CENTOS_STREAM_9"
         "$VMID_ROCKY_8"
         "$VMID_ROCKY_9"
+        "$VMID_ORACLE_8"
+        "$VMID_ORACLE_9"
         "$VMID_WIN_2022"
         "$VMID_WIN_2025"
     )
@@ -270,6 +274,18 @@ main() {
             run_preflight_checks
             show_config_summary
             create_rocky_9_template
+            ;;
+
+        oracle-8)
+            run_preflight_checks
+            show_config_summary
+            create_oracle_8_template
+            ;;
+
+        oracle-9)
+            run_preflight_checks
+            show_config_summary
+            create_oracle_9_template
             ;;
 
         win-2022)
