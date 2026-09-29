@@ -17,6 +17,7 @@ source "${PROJECT_DIR}/scripts/windows-templates.sh"
 WIN_ADMIN_USER='Admin&Ops'
 WIN_ADMIN_PASSWORD='P<&>"Q'
 WINDOWS_ISO_STORAGE='iso-store'
+export WINDOWS_ISO_STORAGE
 DOWNLOAD_DIR="${TEST_DIR}/iso"
 xml_file="${TEST_DIR}/autounattend.xml"
 generate_autounattend_xml 2022 "$xml_file"
