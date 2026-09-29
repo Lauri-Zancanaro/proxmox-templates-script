@@ -2,7 +2,7 @@
 
 A criação de templates Windows Server no Proxmox VE difere significativamente do processo utilizado para distribuições Linux. Enquanto distribuições Linux oferecem *cloud images* prontas e suportam nativamente o Cloud-Init, a Microsoft não disponibiliza imagens pré-configuradas, exigindo o uso do **Cloudbase-Init** [1]. 
 
-Este guia detalha o processo semi-automatizado implementado nos scripts deste repositório, garantindo que suas instâncias Windows Server 2022 e 2025 sejam provisionadas com hardware otimizado, drivers VirtIO e configurações consistentes [2].
+Este guia detalha o processo semi-automatizado implementado nos scripts deste repositório, garantindo que suas instâncias Windows Server 2019, 2022 e 2025 sejam provisionadas com hardware otimizado, drivers VirtIO e configurações consistentes [2].
 
 ---
 
@@ -22,9 +22,9 @@ O fluxo de criação é dividido em duas fases principais:
 Antes de iniciar, certifique-se de que os seguintes itens estão disponíveis no seu ambiente Proxmox:
 
 1. **ISO do Windows Server:**
-   * Faça o download da versão de avaliação (2022 ou 2025) diretamente do [Microsoft Evaluation Center](https://www.microsoft.com/en-us/evalcenter/).
+   * Faça o download da versão de avaliação (2019, 2022 ou 2025) diretamente do [Microsoft Evaluation Center](https://www.microsoft.com/en-us/evalcenter/).
    * Faça o upload do arquivo para o diretório de ISOs do Proxmox (geralmente `/var/lib/vz/template/iso/`).
-   * **Importante:** O nome do arquivo deve conter o ano da versão (ex: `windows-server-2022-eval.iso` ou `win-2025.iso`).
+   * **Importante:** O nome do arquivo deve conter o ano da versão (ex.: `windows-server-2019-eval.iso`, `windows-server-2022-eval.iso` ou `win-2025.iso`).
 
 2. **Configuração local:**
    * Crie o arquivo local com `cp config.local.env.example config.local.env` e proteja-o com `chmod 600 config.local.env`.
@@ -37,6 +37,9 @@ Antes de iniciar, certifique-se de que os seguintes itens estão disponíveis no
 Execute o script principal passando o parâmetro correspondente à versão desejada:
 
 ```bash
+# Para Windows Server 2019
+./proxmox-templates.sh win-2019
+
 # Para Windows Server 2022
 ./proxmox-templates.sh win-2022
 
@@ -55,6 +58,8 @@ Execute o script principal passando o parâmetro correspondente à versão desej
    * **TPM:** v2.0
    * **SCSI Controller:** `virtio-scsi-single`
    * **Disco:** VirtIO Block com `discard=on` (Thin Provisioning)
+   * **Tipo de SO:** `win10` para Windows Server 2019; `win11` para 2022/2025
+   * **Drivers VirtIO:** diretórios `2k19`, `2k22` ou `2k25`, conforme a versão
 4. **Anexação de ISOs:** Anexa a ISO do Windows, a ISO do VirtIO e a ISO do `autounattend.xml`.
 
 ---
@@ -137,6 +142,7 @@ Com a VM desligada após o Sysprep, retorne ao shell do servidor Proxmox e execu
 
 **Exemplo:**
 ```bash
+./proxmox-templates.sh finalize-windows 9012  # Windows Server 2019
 ./proxmox-templates.sh finalize-windows 9007
 ```
 
@@ -172,3 +178,5 @@ Seu template Windows Server está pronto! Para criar uma nova VM a partir dele:
 [2] Proxmox Wiki: "Windows VirtIO Drivers". Disponível em: https://pve.proxmox.com/wiki/Windows_VirtIO_Drivers
 [3] ARPHost: "How to Create a Windows Server 2025 Cloud-Init Template in Proxmox". Disponível em: https://arphost.com/how-to-create-a-windows-server-2025-cloud-init-template-in-proxmox/
 [4] Proxmox Forum: "[TUTORIAL] - windows cloud init working". Disponível em: https://forum.proxmox.com/threads/windows-cloud-init-working.83511/
+[5] Proxmox Wiki: "Windows 2019 guest best practices". Disponível em: https://pve.proxmox.com/wiki/Windows_2019_guest_best_practices
+[6] Proxmox Forum: "Proxmox Packer templates for Windows Server 2019/2022/2025". Disponível em: https://forum.proxmox.com/threads/proxmox-packer-templates-for-windows-server-2019-2022-2025-%E2%80%94-cloudbase-init-ansible-openssh-repo-overview.185227/

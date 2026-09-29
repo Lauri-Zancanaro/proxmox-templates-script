@@ -24,6 +24,7 @@
 #   centos-stream9      Cria apenas o template CentOS Stream 9
 #   rocky-8             Cria apenas o template Rocky Linux 8
 #   rocky-9             Cria apenas o template Rocky Linux 9
+#   win-2019            Cria apenas o template Windows Server 2019
 #   win-2022            Cria apenas o template Windows Server 2022
 #   win-2025            Cria apenas o template Windows Server 2025
 #   finalize-windows    Finaliza template Windows pós-instalação manual
@@ -47,7 +48,7 @@
 set -euo pipefail
 
 # Versão do script
-readonly SCRIPT_VERSION="1.5.0"
+readonly SCRIPT_VERSION="1.6.0"
 
 # Diretório base do script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -110,6 +111,7 @@ show_help() {
     printf "  %-25s %s\n" "rocky-9" "Cria template Rocky Linux 9 (VMID: ${VMID_ROCKY_9})"
     printf "  %-25s %s\n" "oracle-8" "Cria template Oracle Linux 8 (VMID: ${VMID_ORACLE_8})"
     printf "  %-25s %s\n" "oracle-9" "Cria template Oracle Linux 9 (VMID: ${VMID_ORACLE_9})"
+    printf "  %-25s %s\n" "win-2019" "Cria template Windows Server 2019 (VMID: ${VMID_WIN_2019})"
     printf "  %-25s %s\n" "win-2022" "Cria template Windows Server 2022 (VMID: ${VMID_WIN_2022})"
     printf "  %-25s %s\n" "win-2025" "Cria template Windows Server 2025 (VMID: ${VMID_WIN_2025})"
     printf "  %-25s %s\n" "" ""
@@ -142,6 +144,7 @@ list_templates() {
         "$VMID_ROCKY_9"
         "$VMID_ORACLE_8"
         "$VMID_ORACLE_9"
+        "$VMID_WIN_2019"
         "$VMID_WIN_2022"
         "$VMID_WIN_2025"
     )
@@ -246,7 +249,7 @@ main() {
                 "$VMID_DEBIAN_12" "$VMID_DEBIAN_13" \
                 "$VMID_CENTOS_STREAM_9" "$VMID_ROCKY_8" "$VMID_ROCKY_9" \
                 "$VMID_ORACLE_8" "$VMID_ORACLE_9" \
-                "$VMID_WIN_2022" "$VMID_WIN_2025"
+                "$VMID_WIN_2019" "$VMID_WIN_2022" "$VMID_WIN_2025"
             show_config_summary
             show_template_table
 
@@ -275,7 +278,7 @@ main() {
             ;;
 
         windows)
-            run_preflight_checks "$VMID_WIN_2022" "$VMID_WIN_2025"
+            run_preflight_checks "$VMID_WIN_2019" "$VMID_WIN_2022" "$VMID_WIN_2025"
             show_config_summary
             create_all_windows_templates
             ;;
@@ -336,6 +339,12 @@ main() {
             run_preflight_checks "$VMID_ORACLE_9"
             show_config_summary
             create_oracle_9_template
+            ;;
+
+        win-2019)
+            run_preflight_checks "$VMID_WIN_2019"
+            show_config_summary
+            create_win_2019_template
             ;;
 
         win-2022)

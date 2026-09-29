@@ -8,6 +8,7 @@
 # Compatibilidade: Proxmox VE 8.x e 9.x
 #
 # Versões suportadas:
+#   - Windows Server 2019 (Evaluation)
 #   - Windows Server 2022 (Evaluation)
 #   - Windows Server 2025 (Evaluation)
 #
@@ -39,11 +40,37 @@ xml_escape() {
         -e "s/'/\&apos;/g"
 }
 
+windows_virtio_driver_path() {
+    case "$1" in
+        2019) printf '%s\n' '2k19' ;;
+        2022) printf '%s\n' '2k22' ;;
+        2025) printf '%s\n' '2k25' ;;
+        *) return 1 ;;
+    esac
+}
+
+windows_ostype() {
+    case "$1" in
+        2019) printf '%s\n' 'win10' ;;
+        2022|2025) printf '%s\n' 'win11' ;;
+        *) return 1 ;;
+    esac
+}
+
+windows_evaluation_url() {
+    case "$1" in
+        2019) printf '%s\n' 'https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server-2019' ;;
+        2022) printf '%s\n' 'https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server-2022' ;;
+        2025) printf '%s\n' 'https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server-2025' ;;
+        *) return 1 ;;
+    esac
+}
+
 # =============================================================================
 # FUNÇÃO: Verificar pré-requisitos para templates Windows
 # =============================================================================
 check_windows_prerequisites() {
-    local win_version="$1"  # "2022" ou "2025"
+    local win_version="$1"  # "2019", "2022" ou "2025"
 
     # Verificar dependências
     if ! check_windows_dependencies; then
@@ -70,11 +97,12 @@ check_windows_prerequisites() {
         log_error ""
         log_error "Para criar o template Windows Server ${win_version}, você precisa:"
         log_error "  1. Baixar a ISO de avaliação do Microsoft Evaluation Center:"
-        if [[ "$win_version" == "2022" ]]; then
-            log_error "     https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server-2022"
-        else
-            log_error "     https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server-2025"
+        local evaluation_url
+        if ! evaluation_url=$(windows_evaluation_url "$win_version"); then
+            log_error "Versão Windows não suportada: ${win_version}."
+            return 1
         fi
+        log_error "     ${evaluation_url}"
         log_error "  2. Copiar a ISO para: ${iso_dir}/"
         log_error "  3. O nome do arquivo deve conter '${win_version}'"
         log_error "     Exemplo: windows-server-${win_version}-eval.iso"
@@ -103,7 +131,7 @@ check_windows_prerequisites() {
 # FUNÇÃO: Gerar arquivo autounattend.xml
 # =============================================================================
 # Argumentos:
-#   $1 - Versão do Windows ("2022" ou "2025")
+#   $1 - Versão do Windows ("2019", "2022" ou "2025")
 #   $2 - Caminho de saída para o arquivo XML
 # =============================================================================
 generate_autounattend_xml() {
@@ -112,10 +140,9 @@ generate_autounattend_xml() {
 
     # Definir o path dos drivers VirtIO conforme a versão
     local virtio_driver_path
-    if [[ "$win_version" == "2022" ]]; then
-        virtio_driver_path="2k22"
-    else
-        virtio_driver_path="2k25"
+    if ! virtio_driver_path=$(windows_virtio_driver_path "$win_version"); then
+        log_error "Versão Windows não suportada: ${win_version}."
+        return 1
     fi
 
     local win_admin_user_xml win_admin_password_xml previous_umask
@@ -418,7 +445,7 @@ generate_autounattend_iso() {
 # Argumentos:
 #   $1 - VMID do template
 #   $2 - Nome do template
-#   $3 - Versão do Windows ("2022" ou "2025")
+#   $3 - Versão do Windows ("2019", "2022" ou "2025")
 #   $4 - Descrição do template
 # =============================================================================
 create_windows_template() (
@@ -479,9 +506,12 @@ create_windows_template() (
     # -------------------------------------------------------------------------
     log_info "[${name}] Criando VM base com hardware otimizado para Windows..."
 
-    # Determinar o ostype adequado para a versão do Windows
-    # PVE 8/9: win11 é o tipo mais recente disponível para Windows Server 2022/2025
-    local win_ostype="win11"
+    # O Proxmox recomenda win10 para Windows Server 2019 e win11 para 2022/2025.
+    local win_ostype
+    if ! win_ostype=$(windows_ostype "$win_version"); then
+        log_error "[${name}] Versão Windows não suportada: ${win_version}."
+        return 1
+    fi
 
     # Montar argumentos de criação da VM
     local create_args=(
@@ -599,6 +629,10 @@ finalize_windows_template() {
     fi
 
     case "$vmid" in
+        "$VMID_WIN_2019")
+            win_version="2019"
+            expected_name="win-server-2019-template"
+            ;;
         "$VMID_WIN_2022")
             win_version="2022"
             expected_name="win-server-2022-template"
@@ -608,7 +642,7 @@ finalize_windows_template() {
             expected_name="win-server-2025-template"
             ;;
         *)
-            log_error "VMID ${vmid} não corresponde aos templates Windows configurados (${VMID_WIN_2022}/${VMID_WIN_2025})."
+            log_error "VMID ${vmid} não corresponde aos templates Windows configurados (${VMID_WIN_2019}/${VMID_WIN_2022}/${VMID_WIN_2025})."
             return 1
             ;;
     esac
@@ -715,6 +749,14 @@ finalize_windows_template() {
 # FUNÇÕES ESPECÍFICAS POR VERSÃO
 # =============================================================================
 
+create_win_2019_template() {
+    create_windows_template \
+        "$VMID_WIN_2019" \
+        "win-server-2019-template" \
+        "2019" \
+        "Windows Server 2019 - Cloudbase-Init Template | PVE ${PVE_FULL_VERSION:-N/A} | Criado em: $(date '+%Y-%m-%d')"
+}
+
 create_win_2022_template() {
     create_windows_template \
         "$VMID_WIN_2022" \
@@ -741,6 +783,18 @@ create_all_windows_templates() {
 
     log_info "Iniciando criação de templates Windows Server..."
     echo ""
+
+    # Windows Server 2019
+    WIN_ISO_PATH=""
+    if create_win_2019_template; then
+        created+=("win-server-2019-template (VMID: ${VMID_WIN_2019})")
+    else
+        if [[ -z "${WIN_ISO_PATH:-}" ]]; then
+            skipped+=("win-server-2019-template (VMID: ${VMID_WIN_2019}) - ISO não encontrada")
+        else
+            failed+=("win-server-2019-template (VMID: ${VMID_WIN_2019})")
+        fi
+    fi
 
     # Windows Server 2022
     WIN_ISO_PATH=""

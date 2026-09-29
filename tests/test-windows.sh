@@ -31,6 +31,21 @@ assert ('Username', expected_user) in texts
 assert sum(1 for tag, text in texts if tag == 'Value' and text == expected_password) == 2
 PY
 
+xml_2019="${TEST_DIR}/autounattend-2019.xml"
+generate_autounattend_xml 2019 "$xml_2019"
+grep -Fq 'E:\vioscsi\2k19\amd64' "$xml_2019"
+grep -Fq 'E:\NetKVM\2k19\amd64' "$xml_2019"
+grep -Fq 'E:\Balloon\2k19\amd64' "$xml_2019"
+grep -Fq 'E:\viostor\2k19\amd64' "$xml_2019"
+[[ "$(windows_virtio_driver_path 2019)" == '2k19' ]]
+[[ "$(windows_ostype 2019)" == 'win10' ]]
+[[ "$(windows_ostype 2022)" == 'win11' ]]
+[[ "$(windows_evaluation_url 2019)" == 'https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server-2019' ]]
+if windows_ostype 2016 >/dev/null 2>&1; then
+    echo 'ERRO: versão Windows não suportada foi aceita.' >&2
+    exit 1
+fi
+
 qm() {
     printf '%s\n' "$*" >> "${TEST_DIR}/qm.log"
     return 0
@@ -55,7 +70,8 @@ cat > "${TEST_DIR}/pvesh" <<'MOCK'
 if [[ "${MOCK_INVENTORY_FAILURE:-0}" == 1 ]]; then
     exit 1
 fi
-printf '%s\n' '[{"vmid":9007,"name":"win-server-2022-template","node":"pve01","template":0,"type":"qemu"}]'
+printf '[{"vmid":%s,"name":"%s","node":"pve01","template":0,"type":"qemu"}]\n' \
+    "${MOCK_VMID:-9007}" "${MOCK_NAME:-win-server-2022-template}"
 MOCK
 chmod +x "${TEST_DIR}/pvesh"
 PATH="${TEST_DIR}:${PATH}"
@@ -67,16 +83,16 @@ qm() {
     case "$1" in
         status) printf '%s\n' 'status: stopped' ;;
         config)
-            printf '%s\n' 'name: win-server-2022-template'
+            printf 'name: %s\n' "${MOCK_NAME:-win-server-2022-template}"
             if [[ "${MOCK_EXTRA_TAG:-0}" == 1 ]]; then
                 printf '%s\n' 'tags: template;cloudbase-init;windows;pve9;other'
             else
                 printf '%s\n' 'tags: template;cloudbase-init;windows;pve9'
             fi
             if [[ "${MOCK_WRONG_ISO:-0}" == 1 ]]; then
-                printf '%s\n' 'ide1: local:iso/other-autounattend-2022.iso,media=cdrom,size=1M'
+                printf 'ide1: local:iso/other-autounattend-%s.iso,media=cdrom,size=1M\n' "${MOCK_YEAR:-2022}"
             else
-                printf '%s\n' 'ide1: local:iso/autounattend-2022.iso,media=cdrom,size=1M'
+                printf 'ide1: local:iso/autounattend-%s.iso,media=cdrom,size=1M\n' "${MOCK_YEAR:-2022}"
             fi
             ;;
         set|template) printf '%s\n' "$*" >> "${TEST_DIR}/mutation.log" ;;
@@ -110,5 +126,18 @@ if [[ "$inventory_failure_rc" -eq 0 || -s "${TEST_DIR}/mutation.log" ]]; then
     echo 'ERRO: finalize-windows não falhou fechado com inventário indisponível.' >&2
     exit 1
 fi
+
+unset MOCK_INVENTORY_FAILURE MOCK_WRONG_ISO MOCK_EXTRA_TAG
+# shellcheck disable=SC2034
+VMID_WIN_2019=9112
+export MOCK_VMID=9112
+export MOCK_NAME='win-server-2019-template'
+export MOCK_YEAR=2019
+: > "${TEST_DIR}/mutation.log"
+finalize_windows_template 9112 >/dev/null 2>&1
+grep -Fq 'set 9112 --delete ide0' "${TEST_DIR}/mutation.log"
+grep -Fq 'set 9112 --ide2 cephfs-lvm:cloudinit' "${TEST_DIR}/mutation.log"
+grep -Fq 'set 9112 --boot order=scsi0' "${TEST_DIR}/mutation.log"
+grep -Fq 'template 9112' "${TEST_DIR}/mutation.log"
 
 printf '%s\n' 'TEST_WINDOWS_OK'

@@ -302,7 +302,7 @@ check_configured_vmids() {
         "$VMID_DEBIAN_12" "$VMID_DEBIAN_13"
         "$VMID_CENTOS_STREAM_9" "$VMID_ROCKY_8" "$VMID_ROCKY_9"
         "$VMID_ORACLE_8" "$VMID_ORACLE_9"
-        "$VMID_WIN_2022" "$VMID_WIN_2025"
+        "$VMID_WIN_2019" "$VMID_WIN_2022" "$VMID_WIN_2025"
     )
     check_vmids_available "${vmids[@]}"
 }
@@ -573,6 +573,7 @@ show_template_table() {
     printf "  %-8s %-35s %-10s\n" "${VMID_ROCKY_9}" "rocky-9-template" "Linux"
     printf "  %-8s %-35s %-10s\n" "${VMID_ORACLE_8}" "oracle-8-template" "Linux"
     printf "  %-8s %-35s %-10s\n" "${VMID_ORACLE_9}" "oracle-9-template" "Linux"
+    printf "  %-8s %-35s %-10s\n" "${VMID_WIN_2019}" "win-server-2019-template" "Windows"
     printf "  %-8s %-35s %-10s\n" "${VMID_WIN_2022}" "win-server-2022-template" "Windows"
     printf "  %-8s %-35s %-10s\n" "${VMID_WIN_2025}" "win-server-2025-template" "Windows"
     echo -e "${COLOR_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_NC}"

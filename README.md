@@ -25,6 +25,7 @@ O script orquestra o download, configuração de hardware, injeção de credenci
 | Rocky Linux 9       | 9006        | Cloud-Init          | .qcow2            |
 | Oracle Linux 8.10   | 9010        | Cloud-Init          | .qcow2            |
 | Oracle Linux 9.8    | 9011        | Cloud-Init          | .qcow2            |
+| Windows Server 2019 | 9012        | Cloudbase-Init      | Instalação ISO    |
 | Windows Server 2022 | 9007        | Cloudbase-Init      | Instalação ISO    |
 | Windows Server 2025 | 9008        | Cloudbase-Init      | Instalação ISO    |
 
@@ -105,10 +106,11 @@ A criação de templates Windows é um processo **semi-automatizado**, pois a Mi
 > Para um guia completo e detalhado com todas as etapas, configuração do Cloudbase-Init, Sysprep e troubleshooting, consulte a documentação dedicada: **[docs/WINDOWS-TEMPLATES.md](docs/WINDOWS-TEMPLATES.md)**.
 
 **Resumo dos passos:**
-1.  Baixe manualmente a ISO de avaliação do Windows Server desejado (2022 ou 2025) do Microsoft Evaluation Center.
-2.  Coloque a ISO no diretório de templates do Proxmox (padrão: `/var/lib/vz/template/iso/`). O nome do arquivo deve conter o ano ("2022" ou "2025").
+1.  Baixe manualmente a ISO de avaliação do Windows Server desejado (2019, 2022 ou 2025) do Microsoft Evaluation Center.
+2.  Coloque a ISO no diretório de templates do Proxmox (padrão: `/var/lib/vz/template/iso/`). O nome do arquivo deve conter o ano (`2019`, `2022` ou `2025`).
 3.  Execute o script:
     ```bash
+    ./proxmox-templates.sh win-2019
     ./proxmox-templates.sh win-2022
     ```
 4.  O script criará a VM e anexará a ISO do Windows, a ISO de drivers VirtIO e a ISO do `autounattend.xml` gerada automaticamente.
@@ -150,14 +152,15 @@ Este script incorpora diversas boas práticas consolidadas:
 *   **Hardware Otimizado:** Utiliza `virtio-scsi-pci` (ou `virtio-scsi-single`) para máxima performance de I/O [1].
 *   **QEMU Guest Agent:** Habilitado por padrão em todos os templates para comunicação bidirecional hypervisor-guest.
 *   **Thin Provisioning:** Ativação do parâmetro `discard=on` no disco e `fstrim_cloned_disks=1` no Guest Agent para recuperar espaço em disco.
-*   **Segurança Windows:** Configuração automática de TPM 2.0, UEFI (OVMF) e Secure Boot para templates Windows Server [4].
+*   **Windows Server 2019:** Usa `ostype=win10` e os drivers VirtIO `2k19`, conforme as boas práticas oficiais do Proxmox [4].
+*   **Segurança Windows:** Configuração automática de TPM 2.0, UEFI (OVMF) e Secure Boot para templates Windows Server.
 *   **Compatibilidade Multi-versão:** Importação universal com `qm importdisk` em PVE 8.x/9.x, usando o volume real retornado pelo Proxmox.
 *   **Tratamento de Erros:** Validação de dependências, storage ativo, conteúdo `snippets`, bridge e VMIDs antes da execução.
 *   **Proteção contra destruição:** O script nunca remove VMs ou templates existentes; qualquer VMID ocupado bloqueia a criação antes da primeira alteração.
 
 ## Versões e Changelog
 
-Atualmente o projeto está na versão **v1.5.0**.
+Atualmente o projeto está na versão **v1.6.0**.
 
 Para ver o histórico completo de alterações, novas funcionalidades e correções de bugs de cada versão, consulte o arquivo **[CHANGELOG.md](CHANGELOG.md)**.
 
@@ -179,4 +182,5 @@ Este projeto inclui um workflow do GitHub Actions (`.github/workflows/shellcheck
 [1] Proxmox VE Documentation: "qm(1) - QEMU/KVM Virtual Machine Manager". Disponível em: https://pve.proxmox.com/pve-docs/qm.1.html
 [2] Proxmox Wiki: "Cloud-Init Support". Disponível em: https://pve.proxmox.com/wiki/Cloud-Init_Support
 [3] Proxmox Wiki: "Roadmap - Proxmox VE 9.0". Disponível em: https://pve.proxmox.com/wiki/Roadmap#9.0-known-issues
-[4] ComputingForGeeks: "Create Windows Server 2022 Template in Proxmox VE". Disponível em: https://computingforgeeks.com/windows-server-2022-template-proxmox/
+[4] Proxmox Wiki: "Windows 2019 guest best practices". Disponível em: https://pve.proxmox.com/wiki/Windows_2019_guest_best_practices
+[5] Proxmox Forum: "Proxmox Packer templates for Windows Server 2019/2022/2025". Disponível em: https://forum.proxmox.com/threads/proxmox-packer-templates-for-windows-server-2019-2022-2025-%E2%80%94-cloudbase-init-ansible-openssh-repo-overview.185227/

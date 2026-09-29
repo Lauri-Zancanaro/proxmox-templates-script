@@ -1,6 +1,6 @@
-# Guia de Testes e Validação — Proxmox Template Scripts v1.5.0
+# Guia de Testes e Validação — Proxmox Template Scripts v1.6.0
 
-Este documento descreve como validar a versão v1.5.0 em desenvolvimento/homologação antes de criar templates no ambiente de produção. O fluxo prioriza pré-validação somente leitura, VMIDs isolados e separação entre Linux e Windows.
+Este documento descreve como validar a versão v1.6.0 em desenvolvimento/homologação antes de criar templates no ambiente de produção. O fluxo prioriza pré-validação somente leitura, VMIDs isolados e separação entre Linux e Windows.
 
 ## 1. Princípios de segurança
 
@@ -18,14 +18,14 @@ Este documento descreve como validar a versão v1.5.0 em desenvolvimento/homolog
 ```bash
 git clone https://github.com/Lauri-Zancanaro/proxmox-templates-script.git
 cd proxmox-templates-script
-git checkout v1.5.0
+git checkout v1.6.0
 ```
 
 Em um clone já existente:
 
 ```bash
 git pull --ff-only origin main
-git checkout v1.5.0
+git checkout v1.6.0
 ```
 
 ### 2.2 Criar configuração local
@@ -36,7 +36,7 @@ chmod 600 config.local.env
 nano config.local.env
 ```
 
-Exemplo para homologação com VMIDs `9101–9111`:
+Exemplo para homologação com VMIDs `9101–9112`:
 
 ```bash
 STORAGE_POOL="vm-nvme"
@@ -58,6 +58,7 @@ VMID_WIN_2025=9108
 VMID_UBUNTU_2604=9109
 VMID_ORACLE_8=9110
 VMID_ORACLE_9=9111
+VMID_WIN_2019=9112
 ```
 
 Antes de escolher a faixa, consulte o inventário global do cluster:
@@ -148,15 +149,15 @@ A preparação Windows exige ISOs da Microsoft e uma etapa manual com Cloudbase-
 
 Antes de executar:
 
-1. Coloque as ISOs 2022/2025 em `/var/lib/vz/template/iso/` com o ano no nome.
+1. Coloque as ISOs 2019/2022/2025 em `/var/lib/vz/template/iso/` com o ano no nome.
 2. Defina uma senha temporária exclusiva em `config.local.env`.
 3. Execute `./proxmox-templates.sh preflight`.
 4. Crie uma versão por vez:
 
 ```bash
-./proxmox-templates.sh win-2022
+./proxmox-templates.sh win-2019
 # Depois de instalar Cloudbase-Init e executar Sysprep:
-./proxmox-templates.sh finalize-windows 9107
+./proxmox-templates.sh finalize-windows 9112
 ```
 
 `finalize-windows` deve recusar VMID, nome, tags ou ISO diferentes dos esperados. Após a conversão, o ISO `autounattend` contendo a senha temporária é removido.

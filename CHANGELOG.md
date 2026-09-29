@@ -2,6 +2,25 @@
 
 Todas as mudanças notáveis neste projeto serão documentadas neste arquivo. O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.6.0] - 2026-09-29
+
+### Adicionado
+
+- Suporte ao Windows Server 2019 Evaluation com o comando `./proxmox-templates.sh win-2019`.
+- VMID padrão `9012` e nome `win-server-2019-template`.
+- Geração de `autounattend.xml` usando os drivers VirtIO `2k19` para SCSI, rede, balloon e storage.
+- Cobertura automatizada para o mapeamento `Windows Server 2019 -> ostype=win10 -> VirtIO 2k19`.
+
+### Alterado
+
+- O fluxo `windows` e o preflight global agora incluem Windows Server 2019, 2022 e 2025.
+- A documentação Windows e o guia de testes foram atualizados para as três versões suportadas.
+
+### Referências técnicas
+
+- Proxmox Wiki: `Windows 2019 guest best practices`.
+- Proxmox Forum: implementação comunitária de templates 2019/2022/2025 com Cloudbase-Init.
+
 ## [1.5.0] - 2026-09-28
 
 ### Adicionado
