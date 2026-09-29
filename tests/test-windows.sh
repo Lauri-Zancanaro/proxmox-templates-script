@@ -69,7 +69,6 @@ export PATH
 
 (
     DOWNLOAD_DIR="${TEST_DIR}/iso-preflight"
-    WINDOWS_ISO_STORAGE='iso-store'
     mkdir -p "$DOWNLOAD_DIR"
     : > "${DOWNLOAD_DIR}/windows-server-2019-eval.iso"
     : > "${DOWNLOAD_DIR}/virtio-win.iso"
@@ -89,15 +88,8 @@ export PATH
 
 (
     mkdir -p "$DOWNLOAD_DIR"
-    PVE_MAJOR_VERSION=9
-    PVE_FULL_VERSION='9.2.0'
-    QEMU_FULL_VERSION='10.1'
-    WIN_CORES=4
-    WIN_MEMORY=8192
-    WIN_DISK_SIZE=64
 
     check_windows_prerequisites() {
-        WIN_ISO_PATH="${DOWNLOAD_DIR}/windows-server-2019-eval.iso"
         WIN_ISO_VOLUME='iso-store:iso/windows-server-2019-eval.iso'
         VIRTIO_ISO_VOLUME='iso-store:iso/virtio-win.iso'
         return 0
