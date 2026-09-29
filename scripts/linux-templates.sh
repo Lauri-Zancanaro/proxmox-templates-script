@@ -48,7 +48,7 @@ create_linux_template() {
     # -------------------------------------------------------------------------
     # Passo 1: Verificar e preparar VMID
     # -------------------------------------------------------------------------
-    if ! remove_existing_template "$vmid" "$name"; then
+    if ! assert_vmid_available "$vmid" "$name"; then
         log_error "Não foi possível preparar o VMID ${vmid}. Pulando '${name}'."
         return 1
     fi
@@ -136,21 +136,15 @@ create_linux_template() {
         # Criar snippet Cloud-Init para instalar qemu-guest-agent no primeiro boot
         # Usar storage compartilhado para que o snippet esteja disponível em todos os nós
         local snippet_storage="${SNIPPETS_STORAGE:-${STORAGE_POOL}}"
-        local snippets_dir
-        snippets_dir=$(pvesm path "${snippet_storage}:snippets/" 2>/dev/null | sed 's|/snippets/$||' || echo "")
-
-        # Fallback: obter o caminho base do storage via pvesm status
-        if [[ -z "$snippets_dir" ]]; then
-            snippets_dir=$(pvesm path "${snippet_storage}:" 2>/dev/null || echo "")
-            if [[ -n "$snippets_dir" ]]; then
-                snippets_dir="${snippets_dir}/snippets"
-            else
-                # Fallback final: tentar caminho padrão para CephFS
-                snippets_dir="/mnt/pve/${snippet_storage}/snippets"
-            fi
+        local snippet_volume="${snippet_storage}:snippets/qemu-guest-agent.yaml"
+        local snippet_file
+        if ! snippet_file=$(pvesm path "$snippet_volume" 2>/dev/null); then
+            log_error "[${name}] Não foi possível resolver o volume de snippet: ${snippet_volume}"
+            qm destroy "$vmid" --purge 2>/dev/null
+            return 1
         fi
-
-        local snippet_file="${snippets_dir}/qemu-guest-agent.yaml"
+        local snippets_dir
+        snippets_dir=$(dirname "$snippet_file")
 
         if [[ ! -d "$snippets_dir" ]]; then
             log_info "[${name}] Criando diretório de snippets: ${snippets_dir}"
@@ -159,7 +153,8 @@ create_linux_template() {
 
         if [[ ! -f "$snippet_file" ]]; then
             log_info "[${name}] Criando snippet Cloud-Init para instalar qemu-guest-agent..."
-            cat > "$snippet_file" << 'CLOUDINIT_EOF'
+            local snippet_tmp="${snippet_file}.tmp.$$"
+            cat > "$snippet_tmp" << 'CLOUDINIT_EOF'
 #cloud-config
 package_update: true
 packages:
@@ -168,11 +163,13 @@ runcmd:
   - systemctl enable qemu-guest-agent
   - systemctl start qemu-guest-agent
 CLOUDINIT_EOF
+            chmod 0644 "$snippet_tmp"
+            mv "$snippet_tmp" "$snippet_file"
         fi
 
         # Aplicar snippet como vendor config via cicustom usando storage compartilhado
         log_info "[${name}] Aplicando snippet cicustom (storage: ${snippet_storage}) para instalação automática do qemu-guest-agent..."
-        qm set "$vmid" --cicustom "vendor=${snippet_storage}:snippets/qemu-guest-agent.yaml"
+        qm set "$vmid" --cicustom "vendor=${snippet_volume}"
     fi
 
     # -------------------------------------------------------------------------

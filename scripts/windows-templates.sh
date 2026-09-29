@@ -30,6 +30,15 @@
 WIN_ISO_PATH=""
 VIRTIO_ISO_PATH=""
 
+xml_escape() {
+    printf '%s' "$1" | sed \
+        -e 's/&/\&amp;/g' \
+        -e 's/</\&lt;/g' \
+        -e 's/>/\&gt;/g' \
+        -e 's/"/\&quot;/g' \
+        -e "s/'/\&apos;/g"
+}
+
 # =============================================================================
 # FUNÇÃO: Verificar pré-requisitos para templates Windows
 # =============================================================================
@@ -109,9 +118,15 @@ generate_autounattend_xml() {
         virtio_driver_path="2k25"
     fi
 
+    local win_admin_user_xml win_admin_password_xml previous_umask
+    win_admin_user_xml=$(xml_escape "$WIN_ADMIN_USER")
+    win_admin_password_xml=$(xml_escape "$WIN_ADMIN_PASSWORD")
+    previous_umask=$(umask)
+    umask 077
+
     log_info "Gerando autounattend.xml para Windows Server ${win_version}..."
 
-    cat > "$output_path" << XMLEOF
+    if ! cat > "$output_path" << XMLEOF
 <?xml version="1.0" encoding="utf-8"?>
 <unattend xmlns="urn:schemas-microsoft-com:unattend"
           xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
@@ -289,16 +304,16 @@ generate_autounattend_xml() {
 
       <UserAccounts>
         <AdministratorPassword>
-          <Value>${WIN_ADMIN_PASSWORD}</Value>
+          <Value>${win_admin_password_xml}</Value>
           <PlainText>true</PlainText>
         </AdministratorPassword>
       </UserAccounts>
 
       <AutoLogon>
         <Enabled>true</Enabled>
-        <Username>${WIN_ADMIN_USER}</Username>
+        <Username>${win_admin_user_xml}</Username>
         <Password>
-          <Value>${WIN_ADMIN_PASSWORD}</Value>
+          <Value>${win_admin_password_xml}</Value>
           <PlainText>true</PlainText>
         </Password>
         <LogonCount>1</LogonCount>
@@ -337,6 +352,18 @@ generate_autounattend_xml() {
   </settings>
 </unattend>
 XMLEOF
+    then
+        umask "$previous_umask"
+        log_error "Falha ao gravar o arquivo autounattend.xml."
+        return 1
+    fi
+
+    if ! chmod 0600 "$output_path"; then
+        umask "$previous_umask"
+        log_error "Falha ao proteger as permissões do arquivo autounattend.xml."
+        return 1
+    fi
+    umask "$previous_umask"
 
     log_info "Arquivo autounattend.xml gerado: ${output_path}"
     return 0
@@ -349,19 +376,38 @@ generate_autounattend_iso() {
     local xml_path="$1"
     local iso_output="$2"
 
-    local tmp_dir
-    tmp_dir=$(mktemp -d)
+    local tmp_dir previous_umask
+    previous_umask=$(umask)
+    umask 077
+    if ! tmp_dir=$(mktemp -d); then
+        umask "$previous_umask"
+        log_error "Falha ao criar diretório temporário para o autounattend."
+        return 1
+    fi
 
-    cp "$xml_path" "${tmp_dir}/autounattend.xml"
+    if ! cp "$xml_path" "${tmp_dir}/autounattend.xml"; then
+        rm -rf "$tmp_dir"
+        umask "$previous_umask"
+        log_error "Falha ao preparar o autounattend.xml para geração do ISO."
+        return 1
+    fi
 
     log_info "Gerando ISO do autounattend..."
     if ! genisoimage -o "$iso_output" -J -r "$tmp_dir" 2>/dev/null; then
         log_error "Falha ao gerar ISO do autounattend."
         rm -rf "$tmp_dir"
+        umask "$previous_umask"
         return 1
     fi
 
     rm -rf "$tmp_dir"
+    if ! chmod 0600 "$iso_output"; then
+        rm -f "$iso_output"
+        umask "$previous_umask"
+        log_error "Falha ao proteger as permissões do ISO autounattend."
+        return 1
+    fi
+    umask "$previous_umask"
     log_info "ISO do autounattend gerado: ${iso_output}"
     return 0
 }
@@ -375,7 +421,7 @@ generate_autounattend_iso() {
 #   $3 - Versão do Windows ("2022" ou "2025")
 #   $4 - Descrição do template
 # =============================================================================
-create_windows_template() {
+create_windows_template() (
     local vmid="$1"
     local name="$2"
     local win_version="$3"
@@ -396,7 +442,7 @@ create_windows_template() {
     # -------------------------------------------------------------------------
     # Passo 2: Verificar e preparar VMID
     # -------------------------------------------------------------------------
-    if ! remove_existing_template "$vmid" "$name"; then
+    if ! assert_vmid_available "$vmid" "$name"; then
         log_error "Não foi possível preparar o VMID ${vmid}. Pulando '${name}'."
         return 1
     fi
@@ -405,16 +451,26 @@ create_windows_template() {
     # Passo 3: Gerar autounattend.xml e ISO
     # -------------------------------------------------------------------------
     local unattend_dir="/tmp/proxmox-win-unattend-${win_version}"
+    local previous_umask
+    previous_umask=$(umask)
+    umask 077
+    rm -rf "$unattend_dir"
     mkdir -p "$unattend_dir"
+    umask "$previous_umask"
 
     local xml_path="${unattend_dir}/autounattend.xml"
     local autounattend_iso="/var/lib/vz/template/iso/autounattend-${win_version}.iso"
+    local preserve_autounattend_iso=false
+    trap 'rm -rf "$unattend_dir"; if [[ "$preserve_autounattend_iso" != "true" ]]; then rm -f "$autounattend_iso"; fi' EXIT
 
     if ! generate_autounattend_xml "$win_version" "$xml_path"; then
+        rm -rf "$unattend_dir"
         return 1
     fi
 
     if ! generate_autounattend_iso "$xml_path" "$autounattend_iso"; then
+        rm -rf "$unattend_dir"
+        rm -f "$autounattend_iso"
         return 1
     fi
 
@@ -450,6 +506,8 @@ create_windows_template() {
 
     if ! qm create "${create_args[@]}"; then
         log_error "[${name}] Falha ao criar a VM base."
+        rm -rf "$unattend_dir"
+        rm -f "$autounattend_iso"
         return 1
     fi
 
@@ -463,18 +521,32 @@ create_windows_template() {
     local virtio_iso_filename
     virtio_iso_filename=$(basename "$VIRTIO_ISO_PATH")
 
-    qm set "$vmid" --ide0 "local:iso/${win_iso_filename},media=cdrom"
-    qm set "$vmid" --ide1 "local:iso/autounattend-${win_version}.iso,media=cdrom"
-    qm set "$vmid" --ide2 "local:iso/${virtio_iso_filename},media=cdrom"
+    if ! qm set "$vmid" --ide0 "local:iso/${win_iso_filename},media=cdrom" || \
+       ! qm set "$vmid" --ide1 "local:iso/autounattend-${win_version}.iso,media=cdrom" || \
+       ! qm set "$vmid" --ide2 "local:iso/${virtio_iso_filename},media=cdrom"; then
+        log_error "[${name}] Falha ao anexar as ISOs de instalação."
+        qm destroy "$vmid" --purge 2>/dev/null || true
+        rm -rf "$unattend_dir"
+        rm -f "$autounattend_iso"
+        return 1
+    fi
+
+    # O XML em texto claro não é mais necessário depois que o ISO foi gerado.
+    rm -rf "$unattend_dir"
 
     # Configurar boot para CD-ROM primeiro
-    qm set "$vmid" --boot "order=ide0;scsi0"
+    if ! qm set "$vmid" --boot "order=ide0;scsi0" || \
+       ! qm set "$vmid" --vga std || \
+       ! qm set "$vmid" --agent enabled=1; then
+        log_error "[${name}] Falha ao concluir a configuração de hardware Windows."
+        qm destroy "$vmid" --purge 2>/dev/null || true
+        rm -f "$autounattend_iso"
+        return 1
+    fi
+    preserve_autounattend_iso=true
 
     # Configurar display (VNC - compatível com noVNC do Proxmox Web UI)
-    qm set "$vmid" --vga std
-
-    # Habilitar QEMU Guest Agent
-    qm set "$vmid" --agent enabled=1
+    # QEMU Guest Agent habilitado no bloco anterior.
 
     # -------------------------------------------------------------------------
     # Passo 6: Informar próximos passos manuais
@@ -489,7 +561,7 @@ create_windows_template() {
     log_info "  1. Iniciar a VM:"
     log_info "     qm start ${vmid}"
     log_info ""
-    log_info "  2. Acessar o console via VNC/SPICE no Proxmox Web UI"
+    log_info "  2. Acessar o console via noVNC no Proxmox Web UI"
     log_info "     e aguardar a instalação automática do Windows."
     log_info ""
     log_info "  3. Após a instalação e primeiro login automático:"
@@ -512,22 +584,82 @@ create_windows_template() {
     log_info ""
 
     return 0
-}
+)
 
 # =============================================================================
 # FUNÇÃO: Finalizar template Windows (pós-instalação manual)
 # =============================================================================
 finalize_windows_template() {
-    local vmid="$1"
+    local vmid="${1:-}"
+    local win_version expected_name
 
     if [[ -z "$vmid" ]]; then
         log_error "VMID não informado. Uso: finalize-windows <VMID>"
         return 1
     fi
 
-    # Verificar se a VM existe
+    case "$vmid" in
+        "$VMID_WIN_2022")
+            win_version="2022"
+            expected_name="win-server-2022-template"
+            ;;
+        "$VMID_WIN_2025")
+            win_version="2025"
+            expected_name="win-server-2025-template"
+            ;;
+        *)
+            log_error "VMID ${vmid} não corresponde aos templates Windows configurados (${VMID_WIN_2022}/${VMID_WIN_2025})."
+            return 1
+            ;;
+    esac
+
+    local inventory_rc=0
+    cluster_vmid_exists "$vmid" || inventory_rc=$?
+    case "$inventory_rc" in
+        0) ;;
+        1)
+            log_error "VMID ${vmid} não existe no inventário global do cluster."
+            return 1
+            ;;
+        *)
+            log_error "Inventário global do cluster indisponível ou inválido; finalização bloqueada."
+            return 1
+            ;;
+    esac
+
+    # Verificar se a VM pertence ao nó atual e corresponde ao recurso esperado.
     if ! qm status "$vmid" &>/dev/null; then
-        log_error "VM ${vmid} não encontrada."
+        log_error "VM ${vmid} não encontrada no nó atual."
+        return 1
+    fi
+
+    local vm_config
+    if ! vm_config=$(qm config "$vmid" 2>/dev/null); then
+        log_error "Não foi possível ler a configuração da VM ${vmid}."
+        return 1
+    fi
+
+    if grep -q '^template: 1$' <<< "$vm_config"; then
+        log_error "VM ${vmid} já é um template."
+        return 1
+    fi
+    if ! grep -q "^name: ${expected_name}$" <<< "$vm_config"; then
+        log_error "Nome inesperado para VM ${vmid}; esperado '${expected_name}'."
+        return 1
+    fi
+    local vm_tags normalized_tags expected_tags
+    vm_tags=$(awk -F': ' '/^tags:/{print $2; exit}' <<< "$vm_config")
+    normalized_tags=$(tr ',;' '\n' <<< "$vm_tags" | sed '/^[[:space:]]*$/d' | LC_ALL=C sort -u | paste -sd';' -)
+    expected_tags=$(printf '%s\n' cloudbase-init "pve${PVE_MAJOR_VERSION:-8}" template windows | LC_ALL=C sort | paste -sd';' -)
+    if [[ "$normalized_tags" != "$expected_tags" ]]; then
+        log_error "VM ${vmid} não contém exatamente as tags esperadas: ${expected_tags}."
+        return 1
+    fi
+    local ide1_config ide1_volume
+    ide1_config=$(awk -F': ' '/^ide1:/{print $2; exit}' <<< "$vm_config")
+    ide1_volume="${ide1_config%%,*}"
+    if [[ "$ide1_volume" != "local:iso/autounattend-${win_version}.iso" ]]; then
+        log_error "VM ${vmid} não contém o ISO autounattend esperado para Windows ${win_version}."
         return 1
     fi
 
@@ -544,20 +676,32 @@ finalize_windows_template() {
 
     # Remover ISOs de instalação
     log_info "Removendo ISOs de instalação..."
-    qm set "$vmid" --delete ide0 2>/dev/null
-    qm set "$vmid" --delete ide1 2>/dev/null
-    qm set "$vmid" --delete ide2 2>/dev/null
+    if ! qm set "$vmid" --delete ide0 2>/dev/null || \
+       ! qm set "$vmid" --delete ide1 2>/dev/null || \
+       ! qm set "$vmid" --delete ide2 2>/dev/null; then
+        log_error "Falha ao remover uma ou mais ISOs da VM ${vmid}."
+        return 1
+    fi
 
     # Adicionar drive Cloud-Init
     log_info "Adicionando drive Cloud-Init..."
-    qm set "$vmid" --ide2 "${STORAGE_POOL}:cloudinit"
+    if ! qm set "$vmid" --ide2 "${STORAGE_POOL}:cloudinit"; then
+        log_error "Falha ao adicionar o drive Cloud-Init à VM ${vmid}."
+        return 1
+    fi
 
     # Configurar boot
-    qm set "$vmid" --boot order=scsi0
+    if ! qm set "$vmid" --boot order=scsi0; then
+        log_error "Falha ao configurar o boot da VM ${vmid}."
+        return 1
+    fi
 
     # Converter para template
     log_info "Convertendo para template..."
     if qm template "$vmid"; then
+        # O ISO autounattend contém a senha em texto claro e não é mais necessário.
+        rm -f "/var/lib/vz/template/iso/autounattend-${win_version}.iso"
+        rm -rf "/tmp/proxmox-win-unattend-${win_version}"
         log_info "Template Windows finalizado com sucesso! (VMID: ${vmid})"
     else
         log_error "Falha ao converter para template."

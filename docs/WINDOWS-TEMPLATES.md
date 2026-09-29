@@ -26,8 +26,9 @@ Antes de iniciar, certifique-se de que os seguintes itens estão disponíveis no
    * Faça o upload do arquivo para o diretório de ISOs do Proxmox (geralmente `/var/lib/vz/template/iso/`).
    * **Importante:** O nome do arquivo deve conter o ano da versão (ex: `windows-server-2022-eval.iso` ou `win-2025.iso`).
 
-2. **Configuração do `config.env`:**
-   * Revise as variáveis `WIN_ADMIN_USER` e `WIN_ADMIN_PASSWORD` no arquivo `config.env`. Estas credenciais serão injetadas durante a instalação automática [4].
+2. **Configuração local:**
+   * Crie o arquivo local com `cp config.local.env.example config.local.env` e proteja-o com `chmod 600 config.local.env`.
+   * Revise `WIN_ADMIN_USER` e `WIN_ADMIN_PASSWORD` somente em `config.local.env`. Essas credenciais serão injetadas durante a instalação automática e não devem ser commitadas [4].
 
 ---
 
@@ -42,6 +43,8 @@ Execute o script principal passando o parâmetro correspondente à versão desej
 # Para Windows Server 2025
 ./proxmox-templates.sh win-2025
 ```
+
+> **Segurança:** o ISO `autounattend` contém a senha temporária em texto claro durante a instalação. Restrinja o acesso root/backup ao nó, use uma senha exclusiva e finalize o template assim que concluir Cloudbase-Init e Sysprep; o comando `finalize-windows` remove esse ISO.
 
 ### O que o script faz nos bastidores?
 1. **Verificação:** Confirma a existência da ISO do Windows e baixa automaticamente a ISO de drivers VirtIO mais recente [2].
@@ -62,7 +65,7 @@ Após o script finalizar a Fase 1, a VM estará criada e pronta para ser iniciad
 
 ### 4.1. Instalação do Windows
 1. Inicie a VM recém-criada através da interface web do Proxmox ou via CLI (`qm start <VMID>`).
-2. Abra o console da VM (VNC ou SPICE).
+2. Abra o console da VM pelo **noVNC** integrado à interface web do Proxmox.
 3. **Não é necessário interagir.** A instalação ocorrerá de forma 100% autônoma graças ao arquivo `autounattend.xml`. O Windows será instalado, reiniciará e fará o primeiro logon automaticamente.
 4. Após o primeiro logon, um script PowerShell abrirá brevemente para instalar os drivers VirtIO Guest Tools e o QEMU Guest Agent.
 
@@ -79,7 +82,7 @@ O Cloudbase-Init é o equivalente Windows do Cloud-Init. Ele permite que o Proxm
 1. Faça o download do instalador no site oficial: [Cloudbase-Init Download](https://cloudbase.it/cloudbase-init/#download).
 2. Execute o instalador. Durante o assistente:
    * Escolha o usuário `Administrator`.
-   * Selecione a porta serial `COM1` para logging (o script já adicionou esta porta à VM).
+   * Selecione a porta serial `COM1` para logging e diagnóstico (o script já adicionou esta porta à VM). Os metadados do Proxmox são lidos pelo drive Cloud-Init/ConfigDrive, não pela porta serial.
    * **ATENÇÃO:** Na última tela do instalador, **DESMARQUE** as opções "Run Sysprep" e "Reboot". Clique em Finish.
 3. Abra o arquivo de configuração `C:\Program Files\Cloudbase Solutions\Cloudbase-Init\conf\cloudbase-init.conf` em um editor de texto (como o Notepad) e ajuste para o seguinte padrão [4]:
 
@@ -143,6 +146,7 @@ Com a VM desligada após o Sysprep, retorne ao shell do servidor Proxmox e execu
 3. Adiciona um novo drive Cloud-Init configurado para utilizar o storage pool definido no `config.env`.
 4. Altera a ordem de boot para iniciar diretamente pelo disco SCSI (`scsi0`).
 5. Converte a VM definitivamente em um Template [1].
+6. Remove o ISO `autounattend` e os arquivos temporários que continham a senha em texto claro.
 
 ---
 

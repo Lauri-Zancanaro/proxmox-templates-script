@@ -2,6 +2,35 @@
 
 Todas as mudanças notáveis neste projeto serão documentadas neste arquivo. O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.5.0] - 2026-09-28
+
+### Adicionado
+
+- Arquivo `config.local.env.example` para manter configurações e credenciais específicas do cluster fora do Git.
+- Comando `preflight` somente leitura para validar PVE, storages, conteúdo `snippets`, bridge e VMIDs.
+- Validação de storage ativo e resolução do caminho de snippets por volume ID completo (`<storage>:snippets/<arquivo>`).
+- Testes automatizados para inventário cluster-wide, storage de snippets, importação RBD e segurança do fluxo Windows.
+
+### Alterado
+
+- A importação de disco agora anexa o volume real registrado como `unused0`, sem assumir o nome interno do volume RBD.
+- O script carrega opcionalmente `config.local.env` após `config.env`.
+- Configurações específicas do cluster e credenciais passam a residir em `config.local.env`, evitando conflitos de `git pull` no arquivo versionado.
+
+### Segurança
+
+- O script não remove VMs ou templates existentes; qualquer VMID ocupado no inventário global do cluster bloqueia a execução antes da criação.
+- O inventário global precisa ser um JSON válido; falhas ou respostas inválidas bloqueiam a execução.
+- `config.local.env` foi adicionado ao `.gitignore` para evitar vazamento de credenciais e conflitos em `git pull`.
+- O ISO `autounattend` e os arquivos temporários com a senha Windows em texto claro são removidos ao finalizar o template.
+- Durante a instalação Windows, o ISO `autounattend` continua sensível e deve usar credencial temporária exclusiva até a finalização.
+- `finalize-windows` valida VMID, nome, conjunto exato de tags, volume ISO esperado e estado antes de modificar uma VM.
+- XML e ISO do `autounattend` são criados com permissões restritivas, e valores de credenciais recebem escape XML.
+
+### Corrigido
+
+- Corrigida a lógica de instalação do pacote `genisoimage` quando a dependência Windows não está presente.
+
 ## [1.4.0] - 2026-08-12
 
 ### Adicionado
@@ -16,11 +45,11 @@ Todas as mudanças notáveis neste projeto serão documentadas neste arquivo. O 
 
 ### Corrigido
 
-**Correção do erro 'volume local:snippets/qemu-guest-agent.yaml does not exist' ao clonar templates:** O snippet Cloud-Init para instalação do qemu-guest-agent era armazenado no storage `local`, que é específico de cada nó. Em clusters multi-nó, ao clonar o template em outro nó, o snippet não era encontrado. Agora o snippet é armazenado no storage compartilhado configurado em `SNIPPETS_STORAGE` (padrão: `cephfs-lvm`), garantindo disponibilidade em todos os nós do cluster.
+**Correção do erro 'volume local:snippets/qemu-guest-agent.yaml does not exist' ao clonar templates:** O snippet Cloud-Init para instalação do qemu-guest-agent era armazenado no storage `local`, que é específico de cada nó. Em clusters multi-nó, ao clonar o template em outro nó, o snippet não era encontrado. Agora o snippet é armazenado no storage compartilhado configurado em `SNIPPETS_STORAGE`, garantindo disponibilidade em todos os nós do cluster.
 
 ### Adicionado
 
-**Nova variável `SNIPPETS_STORAGE` no config.env:** Permite configurar qual storage compartilhado será usado para armazenar os snippets Cloud-Init. O storage deve ter o content type `snippets` habilitado (`pvesm set <storage> --content images,rootdir,snippets`).
+**Nova variável `SNIPPETS_STORAGE` no config.env:** Permite configurar qual storage compartilhado será usado para armazenar os snippets Cloud-Init. O storage deve ter o content type `snippets` habilitado; ao alterá-lo, preserve os demais tipos de conteúdo já configurados.
 
 ## [1.3.2] - 2026-04-28
 
@@ -62,7 +91,7 @@ Todas as mudanças notáveis neste projeto serão documentadas neste arquivo. O 
 
 ### Corrigido
 
-**Interface serial ausente nos templates Windows:** A criação de VMs Windows não incluía as portas seriais (`--serial0 socket` e `--serial1 socket`), que são necessárias para o Cloudbase-Init se comunicar com o Proxmox via Cloud-Init (porta COM1). Sem a interface serial, o Cloudbase-Init não conseguia receber as configurações de rede, hostname e credenciais. A correção adiciona ambas as portas seriais automaticamente na função `create_windows_template()`.
+**Interface serial ausente nos templates Windows:** A criação de VMs Windows não incluía as portas seriais (`--serial0 socket` e `--serial1 socket`). Elas foram adicionadas para logging e diagnóstico do Cloudbase-Init em COM1/COM2. O recebimento de metadados continua sendo feito pelo drive Cloud-Init/ConfigDrive.
 
 ## [1.1.2] - 2026-04-23
 

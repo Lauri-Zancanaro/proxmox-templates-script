@@ -16,6 +16,7 @@
 #   all                 Cria todos os templates (Linux + Windows)
 #   linux               Cria todos os templates Linux
 #   windows             Cria todos os templates Windows Server
+#   preflight           Valida ambiente, storages, bridge e VMIDs sem criar VMs
 #   ubuntu-2404         Cria apenas o template Ubuntu 24.04
 #   ubuntu-2604         Cria apenas o template Ubuntu 26.04
 #   debian-12           Cria apenas o template Debian 12
@@ -32,6 +33,7 @@
 #
 # Exemplos:
 #   ./proxmox-templates.sh all
+#   ./proxmox-templates.sh preflight
 #   ./proxmox-templates.sh linux
 #   ./proxmox-templates.sh ubuntu-2404
 #   ./proxmox-templates.sh ubuntu-2604
@@ -45,7 +47,7 @@
 set -euo pipefail
 
 # Versão do script
-readonly SCRIPT_VERSION="1.4.0"
+readonly SCRIPT_VERSION="1.5.0"
 
 # Diretório base do script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -62,6 +64,12 @@ else
     echo "[ERRO] Arquivo de configuração não encontrado: ${SCRIPT_DIR}/config.env"
     echo "Copie o arquivo config.env.example para config.env e edite conforme seu ambiente."
     exit 1
+fi
+
+# Carregar overrides específicos do ambiente, sem versionar credenciais.
+if [[ -f "${SCRIPT_DIR}/config.local.env" ]]; then
+    # shellcheck source=/dev/null
+    source "${SCRIPT_DIR}/config.local.env"
 fi
 
 # Carregar funções utilitárias
@@ -91,6 +99,7 @@ show_help() {
     printf "  %-25s %s\n" "all" "Cria todos os templates (Linux + Windows)"
     printf "  %-25s %s\n" "linux" "Cria todos os templates Linux"
     printf "  %-25s %s\n" "windows" "Cria todos os templates Windows Server"
+    printf "  %-25s %s\n" "preflight" "Valida ambiente, storages, bridge e VMIDs sem criar VMs"
     printf "  %-25s %s\n" "" ""
     printf "  %-25s %s\n" "ubuntu-2404" "Cria template Ubuntu 24.04 LTS (VMID: ${VMID_UBUNTU_2404})"
     printf "  %-25s %s\n" "ubuntu-2604" "Cria template Ubuntu 26.04 LTS (VMID: ${VMID_UBUNTU_2604})"
@@ -109,7 +118,7 @@ show_help() {
     printf "  %-25s %s\n" "version" "Exibe versão do PVE e QEMU detectados"
     printf "  %-25s %s\n" "help" "Exibe esta mensagem de ajuda"
     echo ""
-    echo "Configuração: Edite o arquivo config.env antes de executar."
+    echo "Configuração: copie config.local.env.example para config.local.env e edite o arquivo local."
     echo ""
 }
 
@@ -176,11 +185,19 @@ show_version() {
 # Validações iniciais
 # =============================================================================
 run_preflight_checks() {
+    local vmids=("$@")
     check_root
     check_proxmox
     detect_pve_version
     check_dependencies
     check_storage "$STORAGE_POOL"
+    check_bridge "$BRIDGE_NET"
+    if [[ "${ENABLE_QEMU_AGENT}" == "true" ]]; then
+        check_snippets_storage "$SNIPPETS_STORAGE"
+    fi
+    if [[ ${#vmids[@]} -gt 0 ]]; then
+        check_vmids_available "${vmids[@]}"
+    fi
 
     # Criar diretório de download se não existir
     mkdir -p "$DOWNLOAD_DIR"
@@ -189,6 +206,26 @@ run_preflight_checks() {
     if [[ -n "${LOG_FILE:-}" ]]; then
         mkdir -p "$(dirname "$LOG_FILE")"
     fi
+}
+
+run_readonly_preflight() {
+    local previous_log_file="${LOG_FILE:-}"
+    LOG_FILE=""
+
+    check_root
+    check_proxmox
+    detect_pve_version
+    check_dependencies
+    check_storage "$STORAGE_POOL"
+    check_bridge "$BRIDGE_NET"
+    if [[ "${ENABLE_QEMU_AGENT}" == "true" ]]; then
+        check_snippets_storage "$SNIPPETS_STORAGE"
+    fi
+
+    show_config_summary
+    check_configured_vmids
+
+    LOG_FILE="$previous_log_file"
 }
 
 # =============================================================================
@@ -204,7 +241,12 @@ main() {
     # Processar comando
     case "$command" in
         all)
-            run_preflight_checks
+            run_preflight_checks \
+                "$VMID_UBUNTU_2404" "$VMID_UBUNTU_2604" \
+                "$VMID_DEBIAN_12" "$VMID_DEBIAN_13" \
+                "$VMID_CENTOS_STREAM_9" "$VMID_ROCKY_8" "$VMID_ROCKY_9" \
+                "$VMID_ORACLE_8" "$VMID_ORACLE_9" \
+                "$VMID_WIN_2022" "$VMID_WIN_2025"
             show_config_summary
             show_template_table
 
@@ -222,80 +264,88 @@ main() {
             ;;
 
         linux)
-            run_preflight_checks
+            run_preflight_checks \
+                "$VMID_UBUNTU_2404" "$VMID_UBUNTU_2604" \
+                "$VMID_DEBIAN_12" "$VMID_DEBIAN_13" \
+                "$VMID_CENTOS_STREAM_9" "$VMID_ROCKY_8" "$VMID_ROCKY_9" \
+                "$VMID_ORACLE_8" "$VMID_ORACLE_9"
             show_config_summary
             create_all_linux_templates
             show_results "${CREATED_LINUX_TEMPLATES[@]}"
             ;;
 
         windows)
-            run_preflight_checks
+            run_preflight_checks "$VMID_WIN_2022" "$VMID_WIN_2025"
             show_config_summary
             create_all_windows_templates
             ;;
 
+        preflight)
+            run_readonly_preflight
+            ;;
+
         ubuntu-2404)
-            run_preflight_checks
+            run_preflight_checks "$VMID_UBUNTU_2404"
             show_config_summary
             create_ubuntu_2404_template
             ;;
 
         ubuntu-2604)
-            run_preflight_checks
+            run_preflight_checks "$VMID_UBUNTU_2604"
             show_config_summary
             create_ubuntu_2604_template
             ;;
 
         debian-12)
-            run_preflight_checks
+            run_preflight_checks "$VMID_DEBIAN_12"
             show_config_summary
             create_debian_12_template
             ;;
 
         debian-13)
-            run_preflight_checks
+            run_preflight_checks "$VMID_DEBIAN_13"
             show_config_summary
             create_debian_13_template
             ;;
 
         centos-stream9)
-            run_preflight_checks
+            run_preflight_checks "$VMID_CENTOS_STREAM_9"
             show_config_summary
             create_centos_stream9_template
             ;;
 
         rocky-8)
-            run_preflight_checks
+            run_preflight_checks "$VMID_ROCKY_8"
             show_config_summary
             create_rocky_8_template
             ;;
 
         rocky-9)
-            run_preflight_checks
+            run_preflight_checks "$VMID_ROCKY_9"
             show_config_summary
             create_rocky_9_template
             ;;
 
         oracle-8)
-            run_preflight_checks
+            run_preflight_checks "$VMID_ORACLE_8"
             show_config_summary
             create_oracle_8_template
             ;;
 
         oracle-9)
-            run_preflight_checks
+            run_preflight_checks "$VMID_ORACLE_9"
             show_config_summary
             create_oracle_9_template
             ;;
 
         win-2022)
-            run_preflight_checks
+            run_preflight_checks "$VMID_WIN_2022"
             show_config_summary
             create_win_2022_template
             ;;
 
         win-2025)
-            run_preflight_checks
+            run_preflight_checks "$VMID_WIN_2025"
             show_config_summary
             create_win_2025_template
             ;;

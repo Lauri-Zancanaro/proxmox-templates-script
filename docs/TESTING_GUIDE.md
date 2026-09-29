@@ -1,111 +1,194 @@
-# Guia de Testes e Validação - Proxmox Template Scripts
+# Guia de Testes e Validação — Proxmox Template Scripts v1.5.0
 
-Este documento detalha como validar as alterações da versão v1.1.1 e testar o script de forma segura em um ambiente de desenvolvimento (dev/homologação) antes de aplicá-lo em produção. O objetivo principal é garantir que a nova função de importação de discos funcione corretamente com o storage RBD/Ceph ou qualquer outro tipo de storage disponível no seu cluster.
+Este documento descreve como validar a versão v1.5.0 em desenvolvimento/homologação antes de criar templates no ambiente de produção. O fluxo prioriza pré-validação somente leitura, VMIDs isolados e separação entre Linux e Windows.
 
-## 1. Preparação do Ambiente de Teste
+## 1. Princípios de segurança
 
-Para realizar testes seguros sem afetar os templates de produção existentes (VMIDs 9001 a 9008), recomendamos a criação de um arquivo de configuração específico para desenvolvimento.
+- Use `config.local.env`; não grave credenciais reais em `config.env`.
+- Reserve uma faixa de VMIDs exclusiva para homologação.
+- Execute `preflight` antes de qualquer criação.
+- O script não remove VMs ou templates existentes. Um VMID ocupado bloqueia a operação.
+- Não execute `all` para um primeiro teste. Valide um Linux por vez; trate Windows separadamente.
+- Confirme nome, tags, nó e discos antes de remover manualmente qualquer recurso de teste.
 
-### 1.1 Clonar a Versão Mais Recente
+## 2. Preparação do ambiente
 
-Primeiro, garanta que você possui a versão com a correção mais recente (v1.1.1) no seu servidor Proxmox de desenvolvimento.
+### 2.1 Obter a versão
 
 ```bash
-# Clone o repositório ou atualize o existente
 git clone https://github.com/Lauri-Zancanaro/proxmox-templates-script.git
 cd proxmox-templates-script
-git checkout v1.1.1
+git checkout v1.5.0
 ```
 
-### 1.2 Criar Configuração Isolada (config-dev.env)
-
-Crie uma cópia do arquivo de configuração e altere os VMIDs para uma faixa diferente (por exemplo, 9100+), garantindo isolamento total.
+Em um clone já existente:
 
 ```bash
-cp config.env config-dev.env
-nano config-dev.env
+git pull --ff-only origin main
+git checkout v1.5.0
 ```
 
-**Alterações recomendadas no `config-dev.env`:**
-- `VMID_UBUNTU_2404=9101`
-- `VMID_DEBIAN_12=9102`
-- `STORAGE_POOL="seu-storage-de-teste"` (pode ser o `cephfs-lvm` ou um storage local temporário)
-
-Para testar usando este arquivo isolado, basta criar um link simbólico ou sobrescrever temporariamente o `config.env` original durante os testes:
+### 2.2 Criar configuração local
 
 ```bash
-cp config-dev.env config.env
+cp config.local.env.example config.local.env
+chmod 600 config.local.env
+nano config.local.env
 ```
 
-## 2. Cenários de Teste Recomendados
-
-Os testes abaixo cobrem as funcionalidades principais e as correções específicas implementadas na versão v1.1.1.
-
-### Cenário A: Validação da Correção Crítica (RBD/Ceph)
-
-Este teste valida se a substituição da sintaxe `import-from` pelo comando `qm importdisk` resolveu o erro `scsi0: invalid format`.
-
-**Passos:**
-1. Execute a criação de um único template leve (ex: Debian 12).
-   ```bash
-   ./proxmox-templates.sh debian-12
-   ```
-2. **Resultado Esperado:** O script deve baixar a imagem, criar a VM e exibir o log `[VMID:9102] Executando: qm importdisk 9102 debian-12-genericcloud-amd64.qcow2 cephfs-lvm`.
-3. **Verificação de Sucesso:** A VM 9102 deve ser criada sem o erro `invalid format` e convertida para template com sucesso.
-
-### Cenário B: Validação de Integridade de Imagem (Nova Funcionalidade)
-
-Este teste valida a nova camada de segurança que impede a importação de imagens corrompidas (tamanho inferior a 1MB).
-
-**Passos:**
-1. Simule um download corrompido criando um arquivo vazio no diretório de downloads.
-   ```bash
-   mkdir -p /var/lib/vz/template/iso
-   touch /var/lib/vz/template/iso/debian-13-genericcloud-amd64.qcow2
-   ```
-2. Tente criar o template correspondente.
-   ```bash
-   ./proxmox-templates.sh debian-13
-   ```
-3. **Resultado Esperado:** O script deve detectar que o arquivo é muito pequeno e abortar a operação com a mensagem: `Arquivo de imagem muito pequeno (0 bytes). Download pode ter falhado.`
-
-### Cenário C: Teste de Provisionamento (Clone)
-
-O teste final garante que o template criado é totalmente funcional e o Cloud-Init injeta as configurações corretamente.
-
-**Passos:**
-1. Clone o template recém-criado (ex: VMID 9102) para uma nova VM de teste (ex: VMID 9199).
-   ```bash
-   qm clone 9102 9199 --name teste-debian --full 1
-   ```
-2. Inicie a VM clonada.
-   ```bash
-   qm start 9199
-   ```
-3. Acesse o console da VM ou aguarde a obtenção do IP.
-   ```bash
-   qm terminal 9199
-   ```
-4. **Resultado Esperado:** A VM deve fazer boot corretamente, redimensionar o disco raiz e aceitar o login com o usuário e senha definidos no `config.env` (`CI_USER` e `CI_PASSWORD`).
-
-## 3. Limpeza do Ambiente de Teste
-
-Após a validação bem-sucedida, você pode remover os templates de teste criados na faixa 9100+.
+Exemplo para homologação com VMIDs `9101–9111`:
 
 ```bash
-# Remover a VM clonada
+STORAGE_POOL="vm-nvme"
+SNIPPETS_STORAGE="storage-nvme"
+BRIDGE_NET="vmbr901"
+
+CI_USER="usuario-teste"
+CI_PASSWORD='Informe_Sua_Senha'
+CI_NETWORK="dhcp"
+
+VMID_UBUNTU_2404=9101
+VMID_DEBIAN_12=9102
+VMID_DEBIAN_13=9103
+VMID_CENTOS_STREAM_9=9104
+VMID_ROCKY_8=9105
+VMID_ROCKY_9=9106
+VMID_WIN_2022=9107
+VMID_WIN_2025=9108
+VMID_UBUNTU_2604=9109
+VMID_ORACLE_8=9110
+VMID_ORACLE_9=9111
+```
+
+Antes de escolher a faixa, consulte o inventário global do cluster:
+
+```bash
+pvesh get /cluster/resources --type vm --output-format json-pretty
+```
+
+## 3. Pré-validação somente leitura
+
+```bash
+./proxmox-templates.sh version
+./proxmox-templates.sh preflight
+```
+
+O `preflight` deve confirmar:
+
+- PVE 8.x ou 9.x detectado;
+- storage de discos ativo;
+- bridge existente e ativa no nó;
+- storage compartilhado com conteúdo `snippets`;
+- todos os VMIDs configurados livres no inventário global do cluster.
+
+Se a consulta do inventário falhar ou retornar JSON inválido, a validação deve abortar sem criar diretórios, discos ou VMs.
+
+## 4. Teste Linux controlado
+
+Comece com um único template:
+
+```bash
+./proxmox-templates.sh debian-12
+```
+
+Verificações esperadas:
+
+```bash
+qm config 9102
+pvesm list vm-nvme --vmid 9102
+pvesm path storage-nvme:snippets/qemu-guest-agent.yaml
+```
+
+Confirme no `qm config 9102`:
+
+- `template: 1`;
+- disco `scsi0` em `vm-nvme`;
+- drive Cloud-Init;
+- `cicustom` apontando para `storage-nvme:snippets/qemu-guest-agent.yaml`;
+- `agent: enabled=1`;
+- rede ligada à bridge escolhida.
+
+## 5. Teste de clone e Cloud-Init
+
+Escolha um VMID livre para o clone, por exemplo `9199`, e confirme-o no inventário global antes de criar:
+
+```bash
+pvesh get /cluster/resources --type vm --output-format json-pretty
+qm clone 9102 9199 --name teste-debian --full 1 --storage vm-nvme
+qm set 9199 --ipconfig0 ip=dhcp
+qm start 9199
+```
+
+Valide:
+
+- boot sem erro;
+- hostname e rede aplicados pelo Cloud-Init;
+- acesso por chave SSH ou credencial de teste;
+- QEMU Guest Agent ativo dentro do clone:
+
+```bash
+qm agent 9199 ping
+```
+
+O snippet permanece uma dependência enquanto estiver referenciado por `cicustom`; portanto `storage-nvme` deve estar disponível em todos os nós onde a VM puder iniciar.
+
+## 6. Teste de proteção de VMID
+
+Com o template de teste existente, execute novamente:
+
+```bash
+./proxmox-templates.sh debian-12
+```
+
+Resultado esperado: o script deve detectar o VMID ocupado no cluster e abortar antes de criar ou remover recursos.
+
+## 7. Teste Windows separado
+
+A preparação Windows exige ISOs da Microsoft e uma etapa manual com Cloudbase-Init/Sysprep. Consulte [WINDOWS-TEMPLATES.md](WINDOWS-TEMPLATES.md).
+
+Antes de executar:
+
+1. Coloque as ISOs 2022/2025 em `/var/lib/vz/template/iso/` com o ano no nome.
+2. Defina uma senha temporária exclusiva em `config.local.env`.
+3. Execute `./proxmox-templates.sh preflight`.
+4. Crie uma versão por vez:
+
+```bash
+./proxmox-templates.sh win-2022
+# Depois de instalar Cloudbase-Init e executar Sysprep:
+./proxmox-templates.sh finalize-windows 9107
+```
+
+`finalize-windows` deve recusar VMID, nome, tags ou ISO diferentes dos esperados. Após a conversão, o ISO `autounattend` contendo a senha temporária é removido.
+
+## 8. Limpeza manual do laboratório
+
+A limpeza é intencionalmente manual e destrutiva. Antes de remover qualquer recurso, confirme que ele pertence ao laboratório:
+
+```bash
+qm config 9199
+qm config 9102
+```
+
+Somente após revisar nome, tags e discos e obter a autorização operacional aplicável:
+
+```bash
 qm stop 9199
 qm destroy 9199 --purge
-
-# Remover o template de teste
 qm destroy 9102 --purge
 ```
 
-Restabeleça o arquivo de configuração original para preparar o ambiente para a execução em produção.
+Nunca reutilize esses comandos com VMIDs de produção sem uma revisão explícita.
+
+## 9. Validação do repositório
+
+Em uma estação de desenvolvimento com ShellCheck:
 
 ```bash
-git checkout config.env
+find . -name '*.sh' -type f -print0 | xargs -0 -n1 shellcheck --severity=warning --shell=bash
+bash -n config.env config.local.env.example proxmox-templates.sh
+bash tests/test-utils.sh
+bash tests/test-windows.sh
 ```
 
----
-*Documentação gerada para garantir a confiabilidade dos deploys em servidores Proxmox, alinhada com as boas práticas de validação em ambientes de desenvolvimento antes da aplicação em produção.*
+A mesma suíte é executada pelo GitHub Actions em pushes e pull requests relevantes.

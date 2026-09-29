@@ -33,7 +33,8 @@ O script orquestra o download, configuração de hardware, injeção de credenci
 A solução foi projetada de forma modular para facilitar a manutenção e escalabilidade:
 
 *   **`proxmox-templates.sh`**: O script principal (entrypoint) que orquestra a execução.
-*   **`config.env`**: Arquivo de configuração centralizado contendo variáveis como storage, rede, credenciais e URLs.
+*   **`config.env`**: Configuração padrão versionada, sem credenciais reais.
+*   **`config.local.env`**: Overrides do ambiente e credenciais locais; é ignorado pelo Git.
 *   **`scripts/utils.sh`**: Funções utilitárias de log, detecção de versão PVE, validação e tratamento de erros.
 *   **`scripts/linux-templates.sh`**: Lógica de criação para templates Linux.
 *   **`scripts/windows-templates.sh`**: Lógica de criação para templates Windows Server.
@@ -56,16 +57,21 @@ git clone https://github.com/Lauri-Zancanaro/proxmox-templates-script.git
 cd proxmox-templates-script
 ```
 
-Edite o arquivo de configuração `config.env` para adequar ao seu ambiente:
+Crie o arquivo de configuração local e edite-o para adequar ao seu ambiente:
 
 ```bash
-nano config.env
+cp config.local.env.example config.local.env
+chmod 600 config.local.env
+nano config.local.env
 ```
+
+> Não grave senhas reais em `config.env`. O arquivo `config.local.env` é ignorado pelo Git e evita conflitos durante `git pull`.
 
 **Principais variáveis a revisar:**
 *   `STORAGE_POOL`: O nome do storage onde os discos serão alocados (ex: `local-lvm`, `cephfs-lvm`, `local-zfs`).
 *   `BRIDGE_NET`: A interface de rede do Proxmox (ex: `vmbr0`).
 *   `CI_USER` e `CI_PASSWORD`: Credenciais padrão que serão injetadas via Cloud-Init.
+*   `SNIPPETS_STORAGE`: Storage compartilhado que suporta o conteúdo `snippets`.
 
 ### 2. Verificar Ambiente
 
@@ -73,11 +79,14 @@ Antes de iniciar, você pode verificar se o script detecta corretamente a versã
 
 ```bash
 ./proxmox-templates.sh version
+./proxmox-templates.sh preflight
 ```
+
+O comando `preflight` valida versão, storages, conteúdo `snippets`, bridge e VMIDs sem criar ou remover VMs.
 
 ### 3. Executar a Criação de Templates Linux
 
-Para criar todos os templates Linux suportados de uma só vez:
+Para criar todos os templates Linux suportados de uma só vez, somente após o `preflight` concluir sem conflitos:
 
 ```bash
 ./proxmox-templates.sh linux
@@ -142,12 +151,13 @@ Este script incorpora diversas boas práticas consolidadas:
 *   **QEMU Guest Agent:** Habilitado por padrão em todos os templates para comunicação bidirecional hypervisor-guest.
 *   **Thin Provisioning:** Ativação do parâmetro `discard=on` no disco e `fstrim_cloned_disks=1` no Guest Agent para recuperar espaço em disco.
 *   **Segurança Windows:** Configuração automática de TPM 2.0, UEFI (OVMF) e Secure Boot para templates Windows Server [4].
-*   **Compatibilidade Multi-versão:** Adaptação automática de comandos (`import-from` vs `importdisk`) baseada na versão do Proxmox detectada.
-*   **Tratamento de Erros:** Validação de dependências, checagem de existência do Storage Pool e verificação de VMIDs em uso antes de qualquer operação destrutiva.
+*   **Compatibilidade Multi-versão:** Importação universal com `qm importdisk` em PVE 8.x/9.x, usando o volume real retornado pelo Proxmox.
+*   **Tratamento de Erros:** Validação de dependências, storage ativo, conteúdo `snippets`, bridge e VMIDs antes da execução.
+*   **Proteção contra destruição:** O script nunca remove VMs ou templates existentes; qualquer VMID ocupado bloqueia a criação antes da primeira alteração.
 
 ## Versões e Changelog
 
-Atualmente o projeto está na versão **v1.4.0**. 
+Atualmente o projeto está na versão **v1.5.0**.
 
 Para ver o histórico completo de alterações, novas funcionalidades e correções de bugs de cada versão, consulte o arquivo **[CHANGELOG.md](CHANGELOG.md)**.
 
@@ -162,6 +172,7 @@ Este projeto inclui um workflow do GitHub Actions (`.github/workflows/shellcheck
 | Documento | Descrição |
 |-----------|----------|
 | [docs/WINDOWS-TEMPLATES.md](docs/WINDOWS-TEMPLATES.md) | Guia completo para criação de templates Windows Server (Cloudbase-Init, Sysprep, troubleshooting) |
+| [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) | Guia de pré-flight, homologação, clone e validação segura antes do deploy |
 
 ## Referências
 

@@ -6,11 +6,13 @@ on:
     paths:
       - '**.sh'
       - '**.env'
+      - '**.env.example'
   pull_request:
     branches: [ main ]
     paths:
       - '**.sh'
       - '**.env'
+      - '**.env.example'
 
 jobs:
   shellcheck:
@@ -33,7 +35,14 @@ jobs:
           done
           echo "=== All scripts passed ShellCheck ==="
 
-      - name: Validate config.env syntax
+      - name: Validate configuration syntax
         run: |
-          echo "=== Validating config.env ==="
-          bash -n config.env && echo "config.env: OK" || exit 1
+          echo "=== Validating configuration files ==="
+          bash -n config.env
+          bash -n config.local.env.example
+          echo "Configuration syntax: OK"
+
+      - name: Run behavior tests
+        run: |
+          bash tests/test-utils.sh
+          bash tests/test-windows.sh

@@ -6,6 +6,9 @@
 # Logs
 *.log
 
+# Configuração local do ambiente (não versionar credenciais)
+config.local.env
+
 # Arquivos temporários
 /tmp/
 *.tmp

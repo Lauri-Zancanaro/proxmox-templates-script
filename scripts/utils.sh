@@ -178,7 +178,7 @@ check_proxmox() {
 
 # Verifica se as dependências necessárias estão instaladas
 check_dependencies() {
-    local deps=("wget" "qm" "pvesh")
+    local deps=("wget" "qm" "pvesh" "pvesm" "ip" "perl")
     local missing=()
 
     for dep in "${deps[@]}"; do
@@ -210,7 +210,7 @@ check_windows_dependencies() {
     if [[ ${#missing[@]} -gt 0 ]]; then
         log_warn "Dependências para templates Windows faltando: ${missing[*]}"
         log_info "Tentando instalar automaticamente..."
-        if ! apt-get update -qq && apt-get install -y -qq genisoimage; then
+        if ! apt-get update -qq || ! apt-get install -y -qq genisoimage; then
             log_error "Falha ao instalar dependências para Windows. Instale manualmente: apt install genisoimage"
             return 1
         fi
@@ -232,8 +232,13 @@ check_storage() {
     fi
 
     # Verificar se o storage é GlusterFS (removido no PVE 9)
-    local storage_type
+    local storage_type storage_status
     storage_type=$(pvesm status | awk -v s="$storage" '$1 == s {print $2}')
+    storage_status=$(pvesm status | awk -v s="$storage" '$1 == s {print $3}')
+    if [[ "$storage_status" != "active" ]]; then
+        log_error "Storage '${storage}' não está ativo (status: ${storage_status:-desconhecido})."
+        exit 1
+    fi
     if [[ "$storage_type" == "glusterfs" ]] && pve_version_ge 9 0; then
         log_error "Storage '${storage}' é do tipo GlusterFS, que foi removido no Proxmox VE 9."
         log_error "Migre seus dados para outro tipo de storage antes de continuar."
@@ -243,28 +248,140 @@ check_storage() {
     log_info "Storage pool '${storage}' verificado com sucesso (tipo: ${storage_type})."
 }
 
-# Verifica se um VMID já está em uso
-check_vmid_available() {
-    local vmid="$1"
+# Verifica se a bridge configurada existe e está ativa no nó atual.
+check_bridge() {
+    local bridge="$1"
 
-    if qm status "$vmid" &>/dev/null; then
-        log_warn "VMID ${vmid} já está em uso."
+    if ! ip link show "$bridge" &>/dev/null; then
+        log_error "Bridge '${bridge}' não encontrada no nó atual."
+        exit 1
+    fi
+
+    local state
+    state=$(cat "/sys/class/net/${bridge}/operstate" 2>/dev/null || echo "unknown")
+    if [[ "$state" != "up" && "$state" != "unknown" ]]; then
+        log_error "Bridge '${bridge}' não está ativa (estado: ${state})."
+        exit 1
+    fi
+
+    log_info "Bridge '${bridge}' verificada com sucesso (estado: ${state})."
+}
+
+# Valida um storage de snippets e resolve um volume de teste sem criar arquivos.
+check_snippets_storage() {
+    local storage="$1"
+    check_storage "$storage"
+
+    local storage_json
+    if ! storage_json=$(pvesh get "/storage/${storage}" --output-format json 2>/dev/null); then
+        log_error "Não foi possível consultar a configuração do storage de snippets '${storage}'."
+        exit 1
+    fi
+
+    local storage_content
+    storage_content=$(sed -n 's/.*"content"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' <<< "$storage_json")
+    if [[ ",${storage_content}," != *,snippets,* ]]; then
+        log_error "Storage '${storage}' não possui o content type 'snippets' habilitado."
+        log_error "Habilite 'snippets' pela GUI ou revise: pvesm set ${storage} --content <tipos-atuais>,snippets"
+        exit 1
+    fi
+
+    local test_path
+    if ! test_path=$(pvesm path "${storage}:snippets/.proxmox-templates-preflight" 2>/dev/null); then
+        log_error "Storage '${storage}' não conseguiu resolver um volume do tipo snippets."
+        exit 1
+    fi
+
+    log_info "Storage de snippets '${storage}' validado (caminho: $(dirname "$test_path"))."
+}
+
+# Exibe a disponibilidade dos VMIDs configurados e falha se houver conflito.
+check_configured_vmids() {
+    local vmids=(
+        "$VMID_UBUNTU_2404" "$VMID_UBUNTU_2604"
+        "$VMID_DEBIAN_12" "$VMID_DEBIAN_13"
+        "$VMID_CENTOS_STREAM_9" "$VMID_ROCKY_8" "$VMID_ROCKY_9"
+        "$VMID_ORACLE_8" "$VMID_ORACLE_9"
+        "$VMID_WIN_2022" "$VMID_WIN_2025"
+    )
+    check_vmids_available "${vmids[@]}"
+}
+
+# Verifica uma lista de VMIDs no inventário global do cluster.
+check_vmids_available() {
+    local vmids=("$@")
+    local conflicts=0 vmid check_rc
+
+    log_info "Verificando VMIDs configurados no cluster..."
+    for vmid in "${vmids[@]}"; do
+        check_vmid_available "$vmid" && check_rc=0 || check_rc=$?
+        case "$check_rc" in
+            0) log_info "VMID ${vmid}: livre" ;;
+            1)
+                log_warn "VMID ${vmid}: OCUPADO no cluster"
+                conflicts=$((conflicts + 1))
+                ;;
+            *)
+                log_error "Falha ao validar VMID ${vmid}; abortando sem alterações."
+                return 2
+                ;;
+        esac
+    done
+
+    if [[ "$conflicts" -gt 0 ]]; then
+        log_error "Pré-flight encontrou ${conflicts} VMID(s) ocupado(s). Nenhuma alteração foi executada."
         return 1
     fi
 
-    log_debug "VMID ${vmid} está disponível."
-    return 0
+    log_info "Pré-flight concluído: todos os VMIDs configurados estão livres."
 }
 
-# Verifica se um VMID já é um template existente
-check_vmid_is_template() {
+# Consulta um VMID no inventário global. Retornos: 0=encontrado, 1=ausente, 2=erro.
+cluster_vmid_exists() {
     local vmid="$1"
+    local cluster_resources
 
-    if qm config "$vmid" 2>/dev/null | grep -q "^template: 1"; then
-        return 0
+    if ! cluster_resources=$(pvesh get /cluster/resources --type vm --output-format json 2>/dev/null); then
+        return 2
     fi
 
-    return 1
+    local parser_rc=0
+    perl -MJSON::PP -e '
+        my $target = shift;
+        local $/;
+        my $payload = <STDIN>;
+        my $resources = eval { decode_json($payload) };
+        exit 2 if $@ || ref($resources) ne "ARRAY";
+        for my $resource (@{$resources}) {
+            next if ref($resource) ne "HASH" || !defined($resource->{vmid});
+            exit 0 if "$resource->{vmid}" eq "$target";
+        }
+        exit 1;
+    ' "$vmid" <<< "$cluster_resources" || parser_rc=$?
+
+    return "$parser_rc"
+}
+
+# Verifica se um VMID está livre no cluster. Retornos: 0=livre, 1=ocupado, 2=erro.
+check_vmid_available() {
+    local vmid="$1"
+    local lookup_rc=0
+
+    cluster_vmid_exists "$vmid" || lookup_rc=$?
+    case "$lookup_rc" in
+        0)
+            log_warn "VMID ${vmid} já está em uso no cluster."
+            return 1
+            ;;
+        1)
+            log_debug "VMID ${vmid} está disponível."
+            return 0
+            ;;
+        *)
+            log_error "Inventário de VMIDs do cluster indisponível ou inválido."
+            return 2
+            ;;
+    esac
 }
 
 # =============================================================================
@@ -311,11 +428,18 @@ import_disk_image() {
     # Mostrar output da importação no log (via stderr)
     echo "$import_output" >&2
 
-    # Passo 2: Anexar o disco importado ao barramento da VM
-    # Após o importdisk, o disco fica como 'unused0' e precisa ser anexado.
-    # O nome do disco segue o padrão vm-<VMID>-disk-0
+    # Passo 2: Anexar o disco importado ao barramento da VM.
+    # Após o importdisk, o Proxmox registra o volume como unused0. Ler o volid
+    # real evita assumir nomes internos específicos de RBD/LVM/ZFS.
+    local imported_volume
+    imported_volume=$(qm config "$vmid" 2>/dev/null | sed -n 's/^unused0: \([^,]*\).*/\1/p')
+    if [[ -z "$imported_volume" ]]; then
+        log_error "[VMID:${vmid}] Disco importado não foi encontrado como unused0."
+        return 1
+    fi
+
     log_info "[VMID:${vmid}] Anexando disco ao barramento ${disk_bus} com discard=on..."
-    if ! qm set "$vmid" --"${disk_bus}" "${storage}:vm-${vmid}-disk-0,discard=on"; then
+    if ! qm set "$vmid" --"${disk_bus}" "${imported_volume},discard=on"; then
         log_error "[VMID:${vmid}] Falha ao anexar disco importado."
         return 1
     fi
@@ -377,30 +501,25 @@ download_image() {
 # FUNÇÕES DE TEMPLATE
 # =============================================================================
 
-# Remove um template existente (com confirmação)
-remove_existing_template() {
+# Confirma que o VMID está livre. O script nunca remove VMs/templates existentes.
+assert_vmid_available() {
     local vmid="$1"
     local name="$2"
+    local check_rc
 
-    if check_vmid_available "$vmid"; then
-        return 0
-    fi
-
-    if check_vmid_is_template "$vmid"; then
-        log_warn "Template '${name}' (VMID: ${vmid}) já existe."
-        log_info "Removendo template existente para recriação..."
-        if qm destroy "$vmid" --purge 2>/dev/null; then
-            log_info "Template anterior removido com sucesso."
-            return 0
-        else
-            log_error "Falha ao remover template existente (VMID: ${vmid})."
+    check_vmid_available "$vmid" && check_rc=0 || check_rc=$?
+    case "$check_rc" in
+        0) return 0 ;;
+        1)
+            log_error "VMID ${vmid} ('${name}') já está em uso no cluster."
+            log_error "O script não remove recursos existentes. Selecione outro VMID ou faça a substituição manual em uma mudança separada e autorizada."
             return 1
-        fi
-    else
-        log_error "VMID ${vmid} está em uso por uma VM que NÃO é template. Abortando."
-        log_error "Verifique o VMID e tente novamente."
-        return 1
-    fi
+            ;;
+        *)
+            log_error "Não foi possível confirmar a disponibilidade do VMID ${vmid}. Abortando sem alterações."
+            return 1
+            ;;
+    esac
 }
 
 # =============================================================================
@@ -446,11 +565,14 @@ show_template_table() {
     printf "  %-8s %-35s %-10s\n" "VMID" "TEMPLATE" "TIPO"
     printf "  %-8s %-35s %-10s\n" "--------" "-----------------------------------" "----------"
     printf "  %-8s %-35s %-10s\n" "${VMID_UBUNTU_2404}" "ubuntu-2404-template" "Linux"
+    printf "  %-8s %-35s %-10s\n" "${VMID_UBUNTU_2604}" "ubuntu-2604-template" "Linux"
     printf "  %-8s %-35s %-10s\n" "${VMID_DEBIAN_12}" "debian-12-template" "Linux"
     printf "  %-8s %-35s %-10s\n" "${VMID_DEBIAN_13}" "debian-13-template" "Linux"
     printf "  %-8s %-35s %-10s\n" "${VMID_CENTOS_STREAM_9}" "centos-stream9-template" "Linux"
     printf "  %-8s %-35s %-10s\n" "${VMID_ROCKY_8}" "rocky-8-template" "Linux"
     printf "  %-8s %-35s %-10s\n" "${VMID_ROCKY_9}" "rocky-9-template" "Linux"
+    printf "  %-8s %-35s %-10s\n" "${VMID_ORACLE_8}" "oracle-8-template" "Linux"
+    printf "  %-8s %-35s %-10s\n" "${VMID_ORACLE_9}" "oracle-9-template" "Linux"
     printf "  %-8s %-35s %-10s\n" "${VMID_WIN_2022}" "win-server-2022-template" "Windows"
     printf "  %-8s %-35s %-10s\n" "${VMID_WIN_2025}" "win-server-2025-template" "Windows"
     echo -e "${COLOR_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_NC}"
