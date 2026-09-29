@@ -605,11 +605,6 @@ create_windows_template() (
     # -------------------------------------------------------------------------
     log_info "[${name}] Anexando ISOs de instalação..."
 
-    local win_iso_filename
-    win_iso_filename=$(basename "$WIN_ISO_PATH")
-    local virtio_iso_filename
-    virtio_iso_filename=$(basename "$VIRTIO_ISO_PATH")
-
     if [[ -z "$WIN_ISO_VOLUME" || -z "$VIRTIO_ISO_VOLUME" ]]; then
         log_error "Volumes das ISOs Windows/VirtIO não foram resolvidos antes da criação da VM."
         qm destroy "$vmid" --purge 2>/dev/null || true
