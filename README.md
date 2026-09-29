@@ -71,6 +71,7 @@ nano config.local.env
 **Principais variáveis a revisar:**
 *   `STORAGE_POOL`: O nome do storage onde os discos serão alocados (ex: `local-lvm`, `cephfs-lvm`, `local-zfs`).
 *   `BRIDGE_NET`: A interface de rede do Proxmox (ex: `vmbr0`).
+*   `WINDOWS_ISO_STORAGE`: O storage que publica as ISOs como `<storage>:iso/<arquivo>` (ex: `local`). Deve corresponder ao diretório `DOWNLOAD_DIR`.
 *   `CI_USER` e `CI_PASSWORD`: Credenciais padrão que serão injetadas via Cloud-Init.
 *   `SNIPPETS_STORAGE`: Storage compartilhado que suporta o conteúdo `snippets`.
 
@@ -107,7 +108,7 @@ A criação de templates Windows é um processo **semi-automatizado**, pois a Mi
 
 **Resumo dos passos:**
 1.  Baixe manualmente a ISO de avaliação do Windows Server desejado (2019, 2022 ou 2025) do Microsoft Evaluation Center.
-2.  Coloque a ISO no diretório de templates do Proxmox (padrão: `/var/lib/vz/template/iso/`). O nome do arquivo deve conter o ano (`2019`, `2022` ou `2025`).
+2.  Coloque a ISO no diretório definido por `DOWNLOAD_DIR` (padrão: `/var/lib/vz/template/iso/`). O nome do arquivo deve conter o ano (`2019`, `2022` ou `2025`). Configure `WINDOWS_ISO_STORAGE` para o storage que publica esse diretório no Proxmox.
 3.  Execute o script:
     ```bash
     ./proxmox-templates.sh win-2019
@@ -118,7 +119,7 @@ A criação de templates Windows é um processo **semi-automatizado**, pois a Mi
 6.  Após o Windows iniciar e o script de pós-instalação (que instala os drivers VirtIO) concluir, instale manualmente o [Cloudbase-Init](https://cloudbase.it/cloudbase-init/) e execute o Sysprep (`/generalize /oobe /shutdown`).
 7.  Quando a VM desligar, finalize a conversão para template:
     ```bash
-    ./proxmox-templates.sh finalize-windows 9007
+    ./proxmox-templates.sh finalize-windows 9012  # Windows Server 2019
     ```
 
 ## Utilizando os Templates Criados

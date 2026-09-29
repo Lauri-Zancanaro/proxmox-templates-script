@@ -41,6 +41,7 @@ Exemplo para homologação com VMIDs `9101–9112`:
 ```bash
 STORAGE_POOL="vm-nvme"
 SNIPPETS_STORAGE="storage-nvme"
+WINDOWS_ISO_STORAGE="local"
 BRIDGE_NET="vmbr901"
 
 CI_USER="usuario-teste"
@@ -149,7 +150,7 @@ A preparação Windows exige ISOs da Microsoft e uma etapa manual com Cloudbase-
 
 Antes de executar:
 
-1. Coloque as ISOs 2019/2022/2025 em `/var/lib/vz/template/iso/` com o ano no nome.
+1. Coloque as ISOs 2019/2022/2025 no diretório definido por `DOWNLOAD_DIR`, com o ano no nome, e confirme que `WINDOWS_ISO_STORAGE` publica esse diretório.
 2. Defina uma senha temporária exclusiva em `config.local.env`.
 3. Execute `./proxmox-templates.sh preflight`.
 4. Crie uma versão por vez:
@@ -160,7 +161,7 @@ Antes de executar:
 ./proxmox-templates.sh finalize-windows 9112
 ```
 
-`finalize-windows` deve recusar VMID, nome, tags ou ISO diferentes dos esperados. Após a conversão, o ISO `autounattend` contendo a senha temporária é removido.
+`finalize-windows` deve recusar VMID, nome, tags ou ISO diferentes dos esperados, incluindo storage incorreto. Após a conversão, o ISO `autounattend` contendo a senha temporária é removido do storage configurado.
 
 ## 8. Limpeza manual do laboratório
 

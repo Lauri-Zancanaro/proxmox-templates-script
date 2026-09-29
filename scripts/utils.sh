@@ -547,6 +547,7 @@ show_config_summary() {
     printf "  %-25s %s\n" "Proxmox VE:" "${PVE_FULL_VERSION:-N/A}"
     printf "  %-25s %s\n" "QEMU:" "${QEMU_FULL_VERSION:-N/A}"
     printf "  %-25s %s\n" "Storage Pool:" "${STORAGE_POOL}"
+    printf "  %-25s %s\n" "Windows ISO Storage:" "${WINDOWS_ISO_STORAGE:-local}"
     printf "  %-25s %s\n" "Bridge de Rede:" "${BRIDGE_NET}"
     printf "  %-25s %s\n" "Cloud-Init User:" "${CI_USER}"
     printf "  %-25s %s\n" "Cloud-Init Network:" "${CI_NETWORK}"

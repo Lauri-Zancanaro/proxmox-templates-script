@@ -2,6 +2,13 @@
 
 Todas as mudanças notáveis neste projeto serão documentadas neste arquivo. O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [Unreleased]
+
+### Corrigido
+
+- O fluxo Windows deixou de assumir `local:iso`: o storage das ISOs agora é configurado por `WINDOWS_ISO_STORAGE`, usado para anexar e remover o ISO `autounattend` corretamente.
+- O caminho de host das ISOs é resolvido por `pvesm path`, mantendo `DOWNLOAD_DIR` alinhado ao storage configurado.
+
 ## [1.6.0] - 2026-09-29
 
 ### Adicionado

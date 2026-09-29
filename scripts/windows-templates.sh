@@ -29,7 +29,36 @@
 
 # Variável global para armazenar o caminho da ISO do Windows encontrada
 WIN_ISO_PATH=""
+WIN_ISO_VOLUME=""
 VIRTIO_ISO_PATH=""
+VIRTIO_ISO_VOLUME=""
+
+windows_iso_volume() {
+    local filename="$1"
+    local storage="${WINDOWS_ISO_STORAGE:-local}"
+
+    if [[ -z "$filename" || "$filename" == */* || -z "$storage" ]]; then
+        return 1
+    fi
+
+    printf '%s:iso/%s\n' "$storage" "$filename"
+}
+
+windows_iso_host_path() {
+    local volume="$1"
+    local filename="${volume##*/}"
+    local fallback_dir="${DOWNLOAD_DIR:-/var/lib/vz/template/iso}"
+
+    if [[ -z "$volume" || -z "$filename" || "$filename" == "$volume" ]]; then
+        return 1
+    fi
+
+    if command -v pvesm &>/dev/null; then
+        pvesm path "$volume"
+    else
+        printf '%s/%s\n' "$fallback_dir" "$filename"
+    fi
+}
 
 xml_escape() {
     printf '%s' "$1" | sed \
@@ -77,23 +106,40 @@ check_windows_prerequisites() {
         return 1
     fi
 
-    # Verificar se a ISO do Windows existe no diretório de ISOs
-    local iso_dir="/var/lib/vz/template/iso"
+    # Verificar se o storage e a ISO do Windows estão disponíveis.
+    local iso_dir="${DOWNLOAD_DIR:-/var/lib/vz/template/iso}"
+    local iso_storage="${WINDOWS_ISO_STORAGE:-local}"
     local iso_found=false
+
+    if ! check_storage "$iso_storage"; then
+        return 1
+    fi
 
     # Buscar ISO com padrões flexíveis (case-insensitive via shopt)
     local iso_file
     for iso_file in "${iso_dir}"/*"${win_version}"*.iso; do
         if [[ -f "$iso_file" ]]; then
+            local iso_filename iso_volume iso_storage_path
+            iso_filename=$(basename "$iso_file")
+            if ! iso_volume=$(windows_iso_volume "$iso_filename") || \
+               ! iso_storage_path=$(windows_iso_host_path "$iso_volume"); then
+                log_warn "Não foi possível resolver o volume Proxmox da ISO ${iso_filename}."
+                continue
+            fi
+            if [[ ! -f "$iso_storage_path" ]]; then
+                log_warn "A ISO ${iso_filename} foi encontrada em ${iso_dir}, mas não no caminho do storage ${iso_storage}: ${iso_storage_path}."
+                continue
+            fi
             iso_found=true
-            WIN_ISO_PATH="$iso_file"
-            log_info "ISO do Windows Server ${win_version} encontrada: ${iso_file}"
+            WIN_ISO_PATH="$iso_storage_path"
+            WIN_ISO_VOLUME="$iso_volume"
+            log_info "ISO do Windows Server ${win_version} encontrada: ${WIN_ISO_VOLUME} (${WIN_ISO_PATH})"
             break
         fi
     done
 
     if [[ "$iso_found" == "false" ]]; then
-        log_error "ISO do Windows Server ${win_version} NÃO encontrada em ${iso_dir}."
+        log_error "ISO do Windows Server ${win_version} NÃO encontrada em ${iso_dir} ou não está acessível pelo storage ${iso_storage}."
         log_error ""
         log_error "Para criar o template Windows Server ${win_version}, você precisa:"
         log_error "  1. Baixar a ISO de avaliação do Microsoft Evaluation Center:"
@@ -111,8 +157,14 @@ check_windows_prerequisites() {
     fi
 
     # Verificar/baixar VirtIO drivers ISO
-    local virtio_iso="${iso_dir}/virtio-win.iso"
+    local virtio_volume virtio_iso
+    if ! virtio_volume=$(windows_iso_volume "virtio-win.iso") || \
+       ! virtio_iso=$(windows_iso_host_path "$virtio_volume"); then
+        log_error "Não foi possível resolver o volume da ISO VirtIO no storage ${iso_storage}."
+        return 1
+    fi
     if [[ ! -f "$virtio_iso" ]]; then
+        mkdir -p "$(dirname "$virtio_iso")"
         log_info "Baixando ISO dos drivers VirtIO..."
         if ! wget -q --show-progress -O "$virtio_iso" "$URL_VIRTIO_ISO"; then
             log_error "Falha ao baixar drivers VirtIO."
@@ -124,6 +176,7 @@ check_windows_prerequisites() {
     fi
 
     VIRTIO_ISO_PATH="$virtio_iso"
+    VIRTIO_ISO_VOLUME="$virtio_volume"
     return 0
 }
 
@@ -486,7 +539,13 @@ create_windows_template() (
     umask "$previous_umask"
 
     local xml_path="${unattend_dir}/autounattend.xml"
-    local autounattend_iso="/var/lib/vz/template/iso/autounattend-${win_version}.iso"
+    local autounattend_iso_volume autounattend_iso
+    if ! autounattend_iso_volume=$(windows_iso_volume "autounattend-${win_version}.iso") || \
+       ! autounattend_iso=$(windows_iso_host_path "$autounattend_iso_volume"); then
+        log_error "Não foi possível resolver o caminho do ISO autounattend no storage ${WINDOWS_ISO_STORAGE:-local}."
+        rm -rf "$unattend_dir"
+        return 1
+    fi
     local preserve_autounattend_iso=false
     trap 'rm -rf "$unattend_dir"; if [[ "$preserve_autounattend_iso" != "true" ]]; then rm -f "$autounattend_iso"; fi' EXIT
 
@@ -551,9 +610,17 @@ create_windows_template() (
     local virtio_iso_filename
     virtio_iso_filename=$(basename "$VIRTIO_ISO_PATH")
 
-    if ! qm set "$vmid" --ide0 "local:iso/${win_iso_filename},media=cdrom" || \
-       ! qm set "$vmid" --ide1 "local:iso/autounattend-${win_version}.iso,media=cdrom" || \
-       ! qm set "$vmid" --ide2 "local:iso/${virtio_iso_filename},media=cdrom"; then
+    if [[ -z "$WIN_ISO_VOLUME" || -z "$VIRTIO_ISO_VOLUME" ]]; then
+        log_error "Volumes das ISOs Windows/VirtIO não foram resolvidos antes da criação da VM."
+        qm destroy "$vmid" --purge 2>/dev/null || true
+        rm -rf "$unattend_dir"
+        rm -f "$autounattend_iso"
+        return 1
+    fi
+
+    if ! qm set "$vmid" --ide0 "${WIN_ISO_VOLUME},media=cdrom" || \
+       ! qm set "$vmid" --ide1 "${autounattend_iso_volume},media=cdrom" || \
+       ! qm set "$vmid" --ide2 "${VIRTIO_ISO_VOLUME},media=cdrom"; then
         log_error "[${name}] Falha ao anexar as ISOs de instalação."
         qm destroy "$vmid" --purge 2>/dev/null || true
         rm -rf "$unattend_dir"
@@ -689,10 +756,14 @@ finalize_windows_template() {
         log_error "VM ${vmid} não contém exatamente as tags esperadas: ${expected_tags}."
         return 1
     fi
-    local ide1_config ide1_volume
+    local ide1_config ide1_volume expected_autounattend_volume
     ide1_config=$(awk -F': ' '/^ide1:/{print $2; exit}' <<< "$vm_config")
     ide1_volume="${ide1_config%%,*}"
-    if [[ "$ide1_volume" != "local:iso/autounattend-${win_version}.iso" ]]; then
+    if ! expected_autounattend_volume=$(windows_iso_volume "autounattend-${win_version}.iso"); then
+        log_error "Não foi possível resolver o volume esperado do ISO autounattend."
+        return 1
+    fi
+    if [[ "$ide1_volume" != "$expected_autounattend_volume" ]]; then
         log_error "VM ${vmid} não contém o ISO autounattend esperado para Windows ${win_version}."
         return 1
     fi
@@ -734,7 +805,10 @@ finalize_windows_template() {
     log_info "Convertendo para template..."
     if qm template "$vmid"; then
         # O ISO autounattend contém a senha em texto claro e não é mais necessário.
-        rm -f "/var/lib/vz/template/iso/autounattend-${win_version}.iso"
+        local autounattend_iso_path
+        if autounattend_iso_path=$(windows_iso_host_path "$expected_autounattend_volume"); then
+            rm -f "$autounattend_iso_path"
+        fi
         rm -rf "/tmp/proxmox-win-unattend-${win_version}"
         log_info "Template Windows finalizado com sucesso! (VMID: ${vmid})"
     else
@@ -786,6 +860,9 @@ create_all_windows_templates() {
 
     # Windows Server 2019
     WIN_ISO_PATH=""
+    WIN_ISO_VOLUME=""
+    VIRTIO_ISO_PATH=""
+    VIRTIO_ISO_VOLUME=""
     if create_win_2019_template; then
         created+=("win-server-2019-template (VMID: ${VMID_WIN_2019})")
     else
@@ -798,6 +875,9 @@ create_all_windows_templates() {
 
     # Windows Server 2022
     WIN_ISO_PATH=""
+    WIN_ISO_VOLUME=""
+    VIRTIO_ISO_PATH=""
+    VIRTIO_ISO_VOLUME=""
     if create_win_2022_template; then
         created+=("win-server-2022-template (VMID: ${VMID_WIN_2022})")
     else
@@ -811,6 +891,9 @@ create_all_windows_templates() {
 
     # Windows Server 2025
     WIN_ISO_PATH=""
+    WIN_ISO_VOLUME=""
+    VIRTIO_ISO_PATH=""
+    VIRTIO_ISO_VOLUME=""
     if create_win_2025_template; then
         created+=("win-server-2025-template (VMID: ${VMID_WIN_2025})")
     else

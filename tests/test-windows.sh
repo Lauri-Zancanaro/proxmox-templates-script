@@ -16,6 +16,8 @@ source "${PROJECT_DIR}/scripts/windows-templates.sh"
 
 WIN_ADMIN_USER='Admin&Ops'
 WIN_ADMIN_PASSWORD='P<&>"Q'
+WINDOWS_ISO_STORAGE='iso-store'
+DOWNLOAD_DIR="${TEST_DIR}/iso"
 xml_file="${TEST_DIR}/autounattend.xml"
 generate_autounattend_xml 2022 "$xml_file"
 
@@ -45,6 +47,79 @@ if windows_ostype 2016 >/dev/null 2>&1; then
     echo 'ERRO: versão Windows não suportada foi aceita.' >&2
     exit 1
 fi
+
+[[ "$(windows_iso_volume 'windows-server-2019-eval.iso')" == 'iso-store:iso/windows-server-2019-eval.iso' ]]
+if windows_iso_volume '../escape.iso' >/dev/null 2>&1; then
+    echo 'ERRO: nome de ISO com caminho foi aceito.' >&2
+    exit 1
+fi
+
+cat > "${TEST_DIR}/pvesm" <<'MOCK'
+#!/usr/bin/env bash
+if [[ "$1" == path ]]; then
+    printf '/srv/proxmox-iso/%s\n' "${2##*/}"
+    exit 0
+fi
+exit 1
+MOCK
+chmod +x "${TEST_DIR}/pvesm"
+PATH="${TEST_DIR}:${PATH}"
+export PATH
+[[ "$(windows_iso_host_path 'iso-store:iso/virtio-win.iso')" == '/srv/proxmox-iso/virtio-win.iso' ]]
+
+(
+    DOWNLOAD_DIR="${TEST_DIR}/iso-preflight"
+    WINDOWS_ISO_STORAGE='iso-store'
+    mkdir -p "$DOWNLOAD_DIR"
+    : > "${DOWNLOAD_DIR}/windows-server-2019-eval.iso"
+    : > "${DOWNLOAD_DIR}/virtio-win.iso"
+    check_windows_dependencies() { return 0; }
+    check_storage() { [[ "$1" == 'iso-store' ]]; }
+    pvesm() {
+        if [[ "$1" == path ]]; then
+            printf '%s/%s\n' "$DOWNLOAD_DIR" "${2##*/}"
+            return 0
+        fi
+        return 1
+    }
+    check_windows_prerequisites 2019
+    [[ "$WIN_ISO_VOLUME" == 'iso-store:iso/windows-server-2019-eval.iso' ]]
+    [[ "$VIRTIO_ISO_VOLUME" == 'iso-store:iso/virtio-win.iso' ]]
+)
+
+(
+    mkdir -p "$DOWNLOAD_DIR"
+    PVE_MAJOR_VERSION=9
+    PVE_FULL_VERSION='9.2.0'
+    QEMU_FULL_VERSION='10.1'
+    WIN_CORES=4
+    WIN_MEMORY=8192
+    WIN_DISK_SIZE=64
+
+    check_windows_prerequisites() {
+        WIN_ISO_PATH="${DOWNLOAD_DIR}/windows-server-2019-eval.iso"
+        WIN_ISO_VOLUME='iso-store:iso/windows-server-2019-eval.iso'
+        VIRTIO_ISO_PATH="${DOWNLOAD_DIR}/virtio-win.iso"
+        VIRTIO_ISO_VOLUME='iso-store:iso/virtio-win.iso'
+        return 0
+    }
+    assert_vmid_available() { return 0; }
+    windows_iso_host_path() {
+        printf '%s/%s\n' "$DOWNLOAD_DIR" "${1##*/}"
+    }
+    generate_autounattend_iso() {
+        : > "$2"
+    }
+    qm() {
+        printf '%s\n' "$*" >> "${TEST_DIR}/qm-create.log"
+        return 0
+    }
+
+    create_windows_template 9119 'win-server-2019-test' 2019 >/dev/null 2>&1
+    grep -Fq -- '--ide0 iso-store:iso/windows-server-2019-eval.iso,media=cdrom' "${TEST_DIR}/qm-create.log"
+    grep -Fq -- '--ide1 iso-store:iso/autounattend-2019.iso,media=cdrom' "${TEST_DIR}/qm-create.log"
+    grep -Fq -- '--ide2 iso-store:iso/virtio-win.iso,media=cdrom' "${TEST_DIR}/qm-create.log"
+)
 
 qm() {
     printf '%s\n' "$*" >> "${TEST_DIR}/qm.log"
@@ -90,9 +165,9 @@ qm() {
                 printf '%s\n' 'tags: template;cloudbase-init;windows;pve9'
             fi
             if [[ "${MOCK_WRONG_ISO:-0}" == 1 ]]; then
-                printf 'ide1: local:iso/other-autounattend-%s.iso,media=cdrom,size=1M\n' "${MOCK_YEAR:-2022}"
+                printf 'ide1: %s,media=cdrom,size=1M\n' "$(windows_iso_volume "other-autounattend-${MOCK_YEAR:-2022}.iso")"
             else
-                printf 'ide1: local:iso/autounattend-%s.iso,media=cdrom,size=1M\n' "${MOCK_YEAR:-2022}"
+                printf 'ide1: %s,media=cdrom,size=1M\n' "$(windows_iso_volume "autounattend-${MOCK_YEAR:-2022}.iso")"
             fi
             ;;
         set|template) printf '%s\n' "$*" >> "${TEST_DIR}/mutation.log" ;;

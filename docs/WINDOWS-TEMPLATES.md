@@ -28,6 +28,7 @@ Antes de iniciar, certifique-se de que os seguintes itens estão disponíveis no
 
 2. **Configuração local:**
    * Crie o arquivo local com `cp config.local.env.example config.local.env` e proteja-o com `chmod 600 config.local.env`.
+   * Configure `WINDOWS_ISO_STORAGE` com o storage que publica as ISOs como `<storage>:iso/<arquivo>`; ele deve corresponder ao diretório `DOWNLOAD_DIR` do nó.
    * Revise `WIN_ADMIN_USER` e `WIN_ADMIN_PASSWORD` somente em `config.local.env`. Essas credenciais serão injetadas durante a instalação automática e não devem ser commitadas [4].
 
 ---
@@ -50,7 +51,7 @@ Execute o script principal passando o parâmetro correspondente à versão desej
 > **Segurança:** o ISO `autounattend` contém a senha temporária em texto claro durante a instalação. Restrinja o acesso root/backup ao nó, use uma senha exclusiva e finalize o template assim que concluir Cloudbase-Init e Sysprep; o comando `finalize-windows` remove esse ISO.
 
 ### O que o script faz nos bastidores?
-1. **Verificação:** Confirma a existência da ISO do Windows e baixa automaticamente a ISO de drivers VirtIO mais recente [2].
+1. **Verificação:** Confirma o storage configurado, a existência da ISO do Windows e baixa automaticamente a ISO de drivers VirtIO mais recente [2].
 2. **Geração do `autounattend.xml`:** Cria um arquivo de resposta XML e o converte em um arquivo ISO temporário. Este arquivo instrui o instalador do Windows a carregar os drivers VirtIO de armazenamento durante o boot, particionar o disco, aceitar a EULA, definir a senha do administrador e instalar o QEMU Guest Agent no primeiro logon [4].
 3. **Criação da VM:** Provisiona uma nova VM com hardware recomendado para Windows:
    * **Machine Type:** `q35`
@@ -60,7 +61,7 @@ Execute o script principal passando o parâmetro correspondente à versão desej
    * **Disco:** VirtIO Block com `discard=on` (Thin Provisioning)
    * **Tipo de SO:** `win10` para Windows Server 2019; `win11` para 2022/2025
    * **Drivers VirtIO:** diretórios `2k19`, `2k22` ou `2k25`, conforme a versão
-4. **Anexação de ISOs:** Anexa a ISO do Windows, a ISO do VirtIO e a ISO do `autounattend.xml`.
+4. **Anexação de ISOs:** Anexa a ISO do Windows, a ISO do VirtIO e a ISO do `autounattend.xml` usando o storage configurado, sem assumir `local:iso`.
 
 ---
 
@@ -152,7 +153,7 @@ Com a VM desligada após o Sysprep, retorne ao shell do servidor Proxmox e execu
 3. Adiciona um novo drive Cloud-Init configurado para utilizar o storage pool definido no `config.env`.
 4. Altera a ordem de boot para iniciar diretamente pelo disco SCSI (`scsi0`).
 5. Converte a VM definitivamente em um Template [1].
-6. Remove o ISO `autounattend` e os arquivos temporários que continham a senha em texto claro.
+6. Remove o ISO `autounattend` do mesmo storage configurado e os arquivos temporários que continham a senha em texto claro.
 
 ---
 
