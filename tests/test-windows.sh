@@ -99,7 +99,6 @@ export PATH
     check_windows_prerequisites() {
         WIN_ISO_PATH="${DOWNLOAD_DIR}/windows-server-2019-eval.iso"
         WIN_ISO_VOLUME='iso-store:iso/windows-server-2019-eval.iso'
-        VIRTIO_ISO_PATH="${DOWNLOAD_DIR}/virtio-win.iso"
         VIRTIO_ISO_VOLUME='iso-store:iso/virtio-win.iso'
         return 0
     }

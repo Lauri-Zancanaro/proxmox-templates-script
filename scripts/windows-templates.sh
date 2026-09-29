@@ -30,7 +30,6 @@
 # Variável global para armazenar o caminho da ISO do Windows encontrada
 WIN_ISO_PATH=""
 WIN_ISO_VOLUME=""
-VIRTIO_ISO_PATH=""
 VIRTIO_ISO_VOLUME=""
 
 windows_iso_volume() {
@@ -175,7 +174,6 @@ check_windows_prerequisites() {
         log_info "ISO dos drivers VirtIO já existe: ${virtio_iso}"
     fi
 
-    VIRTIO_ISO_PATH="$virtio_iso"
     VIRTIO_ISO_VOLUME="$virtio_volume"
     return 0
 }
@@ -856,7 +854,6 @@ create_all_windows_templates() {
     # Windows Server 2019
     WIN_ISO_PATH=""
     WIN_ISO_VOLUME=""
-    VIRTIO_ISO_PATH=""
     VIRTIO_ISO_VOLUME=""
     if create_win_2019_template; then
         created+=("win-server-2019-template (VMID: ${VMID_WIN_2019})")
@@ -871,7 +868,6 @@ create_all_windows_templates() {
     # Windows Server 2022
     WIN_ISO_PATH=""
     WIN_ISO_VOLUME=""
-    VIRTIO_ISO_PATH=""
     VIRTIO_ISO_VOLUME=""
     if create_win_2022_template; then
         created+=("win-server-2022-template (VMID: ${VMID_WIN_2022})")
@@ -887,7 +883,6 @@ create_all_windows_templates() {
     # Windows Server 2025
     WIN_ISO_PATH=""
     WIN_ISO_VOLUME=""
-    VIRTIO_ISO_PATH=""
     VIRTIO_ISO_VOLUME=""
     if create_win_2025_template; then
         created+=("win-server-2025-template (VMID: ${VMID_WIN_2025})")
