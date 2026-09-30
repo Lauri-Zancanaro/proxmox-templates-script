@@ -281,18 +281,17 @@ generate_autounattend_xml() {
               <Format>FAT32</Format>
               <Label>System</Label>
             </ModifyPartition>
+            <!-- A partição MSR não deve ser modificada. -->
             <ModifyPartition wcm:action="add">
               <Order>2</Order>
-              <PartitionID>2</PartitionID>
-            </ModifyPartition>
-            <ModifyPartition wcm:action="add">
-              <Order>3</Order>
               <PartitionID>3</PartitionID>
               <Format>NTFS</Format>
               <Label>Windows</Label>
+              <Letter>C</Letter>
             </ModifyPartition>
           </ModifyPartitions>
         </Disk>
+        <WillShowUI>OnError</WillShowUI>
       </DiskConfiguration>
 
       <ImageInstall>

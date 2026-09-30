@@ -61,6 +61,7 @@ Execute o script principal passando o parâmetro correspondente à versão desej
    * **Disco:** VirtIO Block com `discard=on` (Thin Provisioning)
    * **Tipo de SO:** `win10` para Windows Server 2019; `win11` para 2022/2025
    * **Drivers VirtIO:** diretórios `2k19`, `2k22` ou `2k25`, conforme a versão
+   * **Particionamento UEFI/GPT:** EFI, MSR e Windows; somente EFI e Windows são modificadas no `autounattend`, conforme o esquema oficial da Microsoft.
 4. **Anexação de ISOs:** Anexa Windows em `ide0`, VirtIO em `ide1` e `autounattend` em `ide2`, usando o storage configurado. Essa ordem mantém a ISO VirtIO como unidade `E:` esperada pelo XML durante o Windows PE e no primeiro logon, sem assumir `local:iso`.
 
 ---

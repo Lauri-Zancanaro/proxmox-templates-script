@@ -34,6 +34,26 @@ assert ('Username', expected_user) in texts
 assert sum(1 for tag, text in texts if tag == 'Value' and text == expected_password) == 2
 PY
 
+python3 - "$xml_file" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+
+root = ET.parse(sys.argv[1]).getroot()
+ns = {'u': 'urn:schemas-microsoft-com:unattend'}
+mods = root.findall('.//u:DiskConfiguration/u:Disk/u:ModifyPartitions/u:ModifyPartition', ns)
+layout = [
+    (
+        item.findtext('u:Order', namespaces=ns),
+        item.findtext('u:PartitionID', namespaces=ns),
+        item.findtext('u:Format', namespaces=ns),
+        item.findtext('u:Letter', namespaces=ns),
+    )
+    for item in mods
+]
+assert layout == [('1', '1', 'FAT32', None), ('2', '3', 'NTFS', 'C')], layout
+assert root.findtext('.//u:DiskConfiguration/u:WillShowUI', namespaces=ns) == 'OnError'
+PY
+
 xml_2019="${TEST_DIR}/autounattend-2019.xml"
 generate_autounattend_xml 2019 "$xml_2019"
 grep -Fq 'E:\vioscsi\2k19\amd64' "$xml_2019"

@@ -9,6 +9,7 @@ Todas as mudanças notáveis neste projeto serão documentadas neste arquivo. O 
 - O fluxo Windows deixou de assumir `local:iso`: o storage das ISOs agora é configurado por `WINDOWS_ISO_STORAGE`, usado para anexar e remover o ISO `autounattend` corretamente.
 - O caminho de host das ISOs é resolvido por `pvesm path`, mantendo `DOWNLOAD_DIR` alinhado ao storage configurado.
 - A ordem das mídias Windows foi corrigida para manter a ISO VirtIO em `ide1`/`E:` e o `autounattend` em `ide2`; o Windows PE agora carrega somente `vioscsi`, evitando a falha `Windows Setup could not install one or more boot-critical drivers`.
+- O `DiskConfiguration` UEFI deixou de tentar modificar a partição MSR; a partição Windows agora usa ordem 2, letra `C:` e o layout recomendado pela Microsoft, evitando o cancelamento da instalação na etapa de particionamento.
 
 ## [1.6.0] - 2026-09-29
 
