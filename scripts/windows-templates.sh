@@ -383,7 +383,7 @@ generate_autounattend_xml() {
         </SynchronousCommand>
         <SynchronousCommand wcm:action="add">
           <Order>2</Order>
-          <CommandLine>powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "\$installer = Get-PSDrive -PSProvider FileSystem | ForEach-Object { Join-Path \$_.Root 'virtio-win-guest-tools.exe' } | Where-Object { Test-Path \$_ } | Select-Object -First 1; if (-not \$installer) { exit 1 }; Start-Process -FilePath \$installer -ArgumentList '/S','/v&quot;/qn ADDLOCAL=ALL&quot;' -Wait"</CommandLine>
+          <CommandLine>powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "\$installer = Get-PSDrive -PSProvider FileSystem | ForEach-Object { Join-Path \$_.Root 'virtio-win-guest-tools.exe' } | Where-Object { Test-Path \$_ } | Select-Object -First 1; if (-not \$installer) { exit 1 }; \$process = Start-Process -FilePath \$installer -ArgumentList '/install','/quiet','/norestart' -Wait -PassThru; if (\$process.ExitCode -notin @(0,3010)) { exit \$process.ExitCode }"</CommandLine>
           <Description>Install VirtIO Guest Tools and QEMU Guest Agent</Description>
         </SynchronousCommand>
         <SynchronousCommand wcm:action="add">

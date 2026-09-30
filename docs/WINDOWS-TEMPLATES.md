@@ -74,7 +74,7 @@ Após o script finalizar a Fase 1, a VM estará criada e pronta para ser iniciad
 1. Inicie a VM recém-criada através da interface web do Proxmox ou via CLI (`qm start <VMID>`).
 2. Abra o console da VM pelo **noVNC** integrado à interface web do Proxmox.
 3. **Não é necessário interagir.** A instalação ocorrerá de forma 100% autônoma graças ao arquivo `autounattend.xml`. O Windows será instalado, reiniciará e fará o primeiro logon automaticamente.
-4. Após o primeiro logon, um script PowerShell abrirá brevemente para instalar os drivers VirtIO Guest Tools e o QEMU Guest Agent.
+4. Após o primeiro logon, um script PowerShell localiza o instalador VirtIO entre as mídias disponíveis e o executa com `/install /quiet /norestart`. Confirme `qm agent <VMID> ping` antes de considerar a etapa concluída; se o agente não responder, execute o instalador VirtIO Guest Tools pelo console e confirme a instalação. As opções `/S /v"/qn"` não se aplicam a esse instalador.
 
 ### 4.2. Configuração do Sistema e Aplicações
 Este é o momento ideal para aplicar configurações que você deseja que todos os clones herdem:
@@ -86,9 +86,9 @@ Este é o momento ideal para aplicar configurações que você deseja que todos 
 ### 4.3. Instalação e Configuração do Cloudbase-Init
 O Cloudbase-Init é o equivalente Windows do Cloud-Init. Ele permite que o Proxmox injete configurações (IP, hostname, senhas) quando um clone for inicializado [1].
 
-1. Faça o download do instalador no site oficial: [Cloudbase-Init Download](https://cloudbase.it/cloudbase-init/#download).
+1. Faça o download do instalador x64 estável no site oficial: [Cloudbase-Init Download](https://www.cloudbase.it/downloads/CloudbaseInitSetup_Stable_x64.msi). Se o convidado não tiver acesso à Internet, copie o MSI para uma ISO no storage de ISO, anexe temporariamente ao convidado e instale a partir da unidade montada. Depois, antes de `finalize-windows`, restaure o ISO `autounattend-<versão>.iso` em `ide2`, pois o comando valida essa mídia como salvaguarda.
 2. Execute o instalador. Durante o assistente:
-   * Escolha o usuário `Administrator`.
+   * Escolha o usuário `Administrator` (ou altere o `username` nos arquivos principal e `cloudbase-init-unattend.conf` se usar instalação silenciosa, cujo default é `Admin`).
    * Selecione a porta serial `COM1` para logging e diagnóstico (o script já adicionou esta porta à VM). Os metadados do Proxmox são lidos pelo drive Cloud-Init/ConfigDrive, não pela porta serial.
    * **ATENÇÃO:** Na última tela do instalador, **DESMARQUE** as opções "Run Sysprep" e "Reboot". Clique em Finish.
 3. Abra o arquivo de configuração `C:\Program Files\Cloudbase Solutions\Cloudbase-Init\conf\cloudbase-init.conf` em um editor de texto (como o Notepad) e ajuste para o seguinte padrão [4]:

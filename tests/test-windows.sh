@@ -60,6 +60,8 @@ generate_autounattend_xml 2019 "$xml_2019"
 ! grep -Fq 'E:\vioscsi\2k19\amd64' "$xml_2019"
 grep -Fq 'Get-PSDrive -PSProvider FileSystem' "$xml_2019"
 grep -Fq "Join-Path \$_.Root 'virtio-win-guest-tools.exe'" "$xml_2019"
+grep -Fq -- "-ArgumentList '/install','/quiet','/norestart' -Wait -PassThru" "$xml_2019"
+! grep -Fq '/v&quot;/qn' "$xml_2019"
 [[ "$(windows_virtio_driver_path 2019)" == '2k19' ]]
 [[ "$(windows_ostype 2019)" == 'win10' ]]
 [[ "$(windows_ostype 2022)" == 'win11' ]]

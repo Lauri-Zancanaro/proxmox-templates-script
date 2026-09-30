@@ -11,6 +11,7 @@ Todas as mudanças notáveis neste projeto serão documentadas neste arquivo. O 
 - A ordem das mídias Windows foi corrigida para manter a ISO VirtIO em `ide1`/`E:` e o `autounattend` em `ide2`; o Windows PE agora carrega somente `vioscsi`, evitando a falha `Windows Setup could not install one or more boot-critical drivers`.
 - O `DiskConfiguration` UEFI deixou de tentar modificar a partição MSR; a partição Windows agora usa ordem 2, letra `C:` e o layout recomendado pela Microsoft, evitando o cancelamento da instalação na etapa de particionamento.
 - O driver boot-critical `vioscsi` agora é incorporado ao ISO de configuração em `$WinPEDriver$`, que o Windows Setup descobre em qualquer unidade; o instalador VirtIO do primeiro logon também é localizado dinamicamente, eliminando a dependência de letras `E:`/`F:`.
+- O comando de primeiro logon usa os argumentos suportados pelo bundle VirtIO (`/install /quiet /norestart`) e verifica o código de saída; os argumentos anteriores do InstallShield não instalaram o Guest Agent no teste real do Windows Server 2019.
 
 ## [1.6.0] - 2026-09-29
 
