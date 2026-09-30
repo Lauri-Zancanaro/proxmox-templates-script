@@ -238,7 +238,7 @@ generate_autounattend_xml() {
                versionScope="nonSxS">
       <DriverPaths>
         <PathAndCredentials wcm:action="add" wcm:keyValue="1">
-          <Path>E:\vioscsi\${virtio_driver_path}\amd64</Path>
+          <Path>E:\\vioscsi\\${virtio_driver_path}\\amd64</Path>
         </PathAndCredentials>
       </DriverPaths>
     </component>
