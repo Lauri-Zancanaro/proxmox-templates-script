@@ -229,7 +229,8 @@ generate_autounattend_xml() {
       <UserLocale>en-US</UserLocale>
     </component>
 
-    <!-- Drivers VirtIO para reconhecimento do disco durante instalação -->
+    <!-- Carregar somente o driver boot-critical necessário ao disco SCSI.
+         Os demais drivers serão instalados pelo VirtIO Guest Tools no primeiro logon. -->
     <component name="Microsoft-Windows-PnpCustomizationsWinPE"
                processorArchitecture="amd64"
                publicKeyToken="31bf3856ad364e35"
@@ -237,16 +238,7 @@ generate_autounattend_xml() {
                versionScope="nonSxS">
       <DriverPaths>
         <PathAndCredentials wcm:action="add" wcm:keyValue="1">
-          <Path>E:\\vioscsi\\${virtio_driver_path}\\amd64</Path>
-        </PathAndCredentials>
-        <PathAndCredentials wcm:action="add" wcm:keyValue="2">
-          <Path>E:\\NetKVM\\${virtio_driver_path}\\amd64</Path>
-        </PathAndCredentials>
-        <PathAndCredentials wcm:action="add" wcm:keyValue="3">
-          <Path>E:\\Balloon\\${virtio_driver_path}\\amd64</Path>
-        </PathAndCredentials>
-        <PathAndCredentials wcm:action="add" wcm:keyValue="4">
-          <Path>E:\\viostor\\${virtio_driver_path}\\amd64</Path>
+          <Path>E:\vioscsi\${virtio_driver_path}\amd64</Path>
         </PathAndCredentials>
       </DriverPaths>
     </component>
@@ -611,9 +603,12 @@ create_windows_template() (
         return 1
     fi
 
+    # O autounattend referencia E:\ para os drivers e o instalador VirtIO.
+    # Com a mídia do Windows em ide0, manter VirtIO em ide1 e autounattend em
+    # ide2 garante que E: corresponda à ISO VirtIO no Windows PE.
     if ! qm set "$vmid" --ide0 "${WIN_ISO_VOLUME},media=cdrom" || \
-       ! qm set "$vmid" --ide1 "${autounattend_iso_volume},media=cdrom" || \
-       ! qm set "$vmid" --ide2 "${VIRTIO_ISO_VOLUME},media=cdrom"; then
+       ! qm set "$vmid" --ide1 "${VIRTIO_ISO_VOLUME},media=cdrom" || \
+       ! qm set "$vmid" --ide2 "${autounattend_iso_volume},media=cdrom"; then
         log_error "[${name}] Falha ao anexar as ISOs de instalação."
         qm destroy "$vmid" --purge 2>/dev/null || true
         rm -rf "$unattend_dir"
@@ -749,14 +744,14 @@ finalize_windows_template() {
         log_error "VM ${vmid} não contém exatamente as tags esperadas: ${expected_tags}."
         return 1
     fi
-    local ide1_config ide1_volume expected_autounattend_volume
-    ide1_config=$(awk -F': ' '/^ide1:/{print $2; exit}' <<< "$vm_config")
-    ide1_volume="${ide1_config%%,*}"
+    local ide2_config ide2_volume expected_autounattend_volume
+    ide2_config=$(awk -F': ' '/^ide2:/{print $2; exit}' <<< "$vm_config")
+    ide2_volume="${ide2_config%%,*}"
     if ! expected_autounattend_volume=$(windows_iso_volume "autounattend-${win_version}.iso"); then
         log_error "Não foi possível resolver o volume esperado do ISO autounattend."
         return 1
     fi
-    if [[ "$ide1_volume" != "$expected_autounattend_volume" ]]; then
+    if [[ "$ide2_volume" != "$expected_autounattend_volume" ]]; then
         log_error "VM ${vmid} não contém o ISO autounattend esperado para Windows ${win_version}."
         return 1
     fi

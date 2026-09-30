@@ -37,9 +37,9 @@ PY
 xml_2019="${TEST_DIR}/autounattend-2019.xml"
 generate_autounattend_xml 2019 "$xml_2019"
 grep -Fq 'E:\vioscsi\2k19\amd64' "$xml_2019"
-grep -Fq 'E:\NetKVM\2k19\amd64' "$xml_2019"
-grep -Fq 'E:\Balloon\2k19\amd64' "$xml_2019"
-grep -Fq 'E:\viostor\2k19\amd64' "$xml_2019"
+! grep -Fq 'E:\NetKVM\2k19\amd64' "$xml_2019"
+! grep -Fq 'E:\Balloon\2k19\amd64' "$xml_2019"
+! grep -Fq 'E:\viostor\2k19\amd64' "$xml_2019"
 [[ "$(windows_virtio_driver_path 2019)" == '2k19' ]]
 [[ "$(windows_ostype 2019)" == 'win10' ]]
 [[ "$(windows_ostype 2022)" == 'win11' ]]
@@ -109,8 +109,8 @@ export PATH
 
     create_windows_template 9119 'win-server-2019-test' 2019 >/dev/null 2>&1
     grep -Fq -- '--ide0 iso-store:iso/windows-server-2019-eval.iso,media=cdrom' "${TEST_DIR}/qm-create.log"
-    grep -Fq -- '--ide1 iso-store:iso/autounattend-2019.iso,media=cdrom' "${TEST_DIR}/qm-create.log"
-    grep -Fq -- '--ide2 iso-store:iso/virtio-win.iso,media=cdrom' "${TEST_DIR}/qm-create.log"
+    grep -Fq -- '--ide1 iso-store:iso/virtio-win.iso,media=cdrom' "${TEST_DIR}/qm-create.log"
+    grep -Fq -- '--ide2 iso-store:iso/autounattend-2019.iso,media=cdrom' "${TEST_DIR}/qm-create.log"
 )
 
 qm() {
@@ -157,9 +157,9 @@ qm() {
                 printf '%s\n' 'tags: template;cloudbase-init;windows;pve9'
             fi
             if [[ "${MOCK_WRONG_ISO:-0}" == 1 ]]; then
-                printf 'ide1: %s,media=cdrom,size=1M\n' "$(windows_iso_volume "other-autounattend-${MOCK_YEAR:-2022}.iso")"
+                printf 'ide2: %s,media=cdrom,size=1M\n' "$(windows_iso_volume "other-autounattend-${MOCK_YEAR:-2022}.iso")"
             else
-                printf 'ide1: %s,media=cdrom,size=1M\n' "$(windows_iso_volume "autounattend-${MOCK_YEAR:-2022}.iso")"
+                printf 'ide2: %s,media=cdrom,size=1M\n' "$(windows_iso_volume "autounattend-${MOCK_YEAR:-2022}.iso")"
             fi
             ;;
         set|template) printf '%s\n' "$*" >> "${TEST_DIR}/mutation.log" ;;
