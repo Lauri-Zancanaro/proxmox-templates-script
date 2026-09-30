@@ -198,7 +198,7 @@ check_dependencies() {
 
 # Verifica dependências adicionais para templates Windows
 check_windows_dependencies() {
-    local deps=("genisoimage")
+    local deps=("genisoimage" "isoinfo")
     local missing=()
 
     for dep in "${deps[@]}"; do

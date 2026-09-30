@@ -56,10 +56,10 @@ PY
 
 xml_2019="${TEST_DIR}/autounattend-2019.xml"
 generate_autounattend_xml 2019 "$xml_2019"
-grep -Fq 'E:\vioscsi\2k19\amd64' "$xml_2019"
-! grep -Fq 'E:\NetKVM\2k19\amd64' "$xml_2019"
-! grep -Fq 'E:\Balloon\2k19\amd64' "$xml_2019"
-! grep -Fq 'E:\viostor\2k19\amd64' "$xml_2019"
+! grep -Fq '<DriverPaths>' "$xml_2019"
+! grep -Fq 'E:\vioscsi\2k19\amd64' "$xml_2019"
+grep -Fq 'Get-PSDrive -PSProvider FileSystem' "$xml_2019"
+grep -Fq "Join-Path \$_.Root 'virtio-win-guest-tools.exe'" "$xml_2019"
 [[ "$(windows_virtio_driver_path 2019)" == '2k19' ]]
 [[ "$(windows_ostype 2019)" == 'win10' ]]
 [[ "$(windows_ostype 2022)" == 'win11' ]]
@@ -105,6 +105,7 @@ export PATH
     check_windows_prerequisites 2019
     [[ "$WIN_ISO_VOLUME" == 'iso-store:iso/windows-server-2019-eval.iso' ]]
     [[ "$VIRTIO_ISO_VOLUME" == 'iso-store:iso/virtio-win.iso' ]]
+    [[ "$VIRTIO_ISO_PATH" == "${DOWNLOAD_DIR}/virtio-win.iso" ]]
 )
 
 (
@@ -112,7 +113,9 @@ export PATH
 
     check_windows_prerequisites() {
         WIN_ISO_VOLUME='iso-store:iso/windows-server-2019-eval.iso'
+        VIRTIO_ISO_PATH="${DOWNLOAD_DIR}/virtio-win.iso"
         VIRTIO_ISO_VOLUME='iso-store:iso/virtio-win.iso'
+        : > "$VIRTIO_ISO_PATH"
         return 0
     }
     assert_vmid_available() { return 0; }
@@ -120,6 +123,8 @@ export PATH
         printf '%s/%s\n' "$DOWNLOAD_DIR" "${1##*/}"
     }
     generate_autounattend_iso() {
+        [[ "$3" == '2019' ]]
+        [[ "$4" == "$VIRTIO_ISO_PATH" ]]
         : > "$2"
     }
     qm() {

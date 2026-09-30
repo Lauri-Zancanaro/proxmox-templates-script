@@ -52,7 +52,7 @@ Execute o script principal passando o parâmetro correspondente à versão desej
 
 ### O que o script faz nos bastidores?
 1. **Verificação:** Confirma o storage configurado, a existência da ISO do Windows e baixa automaticamente a ISO de drivers VirtIO mais recente [2].
-2. **Geração do `autounattend.xml`:** Cria um arquivo de resposta XML e o converte em um arquivo ISO temporário. No Windows PE, carrega somente o driver boot-critical `vioscsi`; rede, balloon e os demais componentes são instalados pelo VirtIO Guest Tools no primeiro logon. Isso evita que drivers desnecessários sejam tratados como boot-critical [4].
+2. **Geração do `autounattend.xml`:** Cria um arquivo de resposta XML e um ISO temporário que contém somente o driver boot-critical `vioscsi` na pasta oficial `$WinPEDriver$`. O Windows Setup procura essa pasta automaticamente nas mídias montadas, sem depender de uma letra fixa. Rede, balloon e os demais componentes são instalados pelo VirtIO Guest Tools no primeiro logon; o instalador é localizado dinamicamente entre os volumes disponíveis [4].
 3. **Criação da VM:** Provisiona uma nova VM com hardware recomendado para Windows:
    * **Machine Type:** `q35`
    * **BIOS:** OVMF (UEFI) com Secure Boot
@@ -62,7 +62,7 @@ Execute o script principal passando o parâmetro correspondente à versão desej
    * **Tipo de SO:** `win10` para Windows Server 2019; `win11` para 2022/2025
    * **Drivers VirtIO:** diretórios `2k19`, `2k22` ou `2k25`, conforme a versão
    * **Particionamento UEFI/GPT:** EFI, MSR e Windows; somente EFI e Windows são modificadas no `autounattend`, conforme o esquema oficial da Microsoft.
-4. **Anexação de ISOs:** Anexa Windows em `ide0`, VirtIO em `ide1` e `autounattend` em `ide2`, usando o storage configurado. Essa ordem mantém a ISO VirtIO como unidade `E:` esperada pelo XML durante o Windows PE e no primeiro logon, sem assumir `local:iso`.
+4. **Anexação de ISOs:** Anexa Windows em `ide0`, VirtIO em `ide1` e `autounattend` em `ide2`, usando o storage configurado. O fluxo não presume que essas mídias serão `D:`, `E:` ou `F:` dentro do Windows PE.
 
 ---
 

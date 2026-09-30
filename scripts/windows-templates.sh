@@ -30,6 +30,7 @@
 # Variável global para armazenar o caminho da ISO do Windows encontrada
 WIN_ISO_PATH=""
 WIN_ISO_VOLUME=""
+VIRTIO_ISO_PATH=""
 VIRTIO_ISO_VOLUME=""
 
 windows_iso_volume() {
@@ -174,6 +175,7 @@ check_windows_prerequisites() {
         log_info "ISO dos drivers VirtIO já existe: ${virtio_iso}"
     fi
 
+    VIRTIO_ISO_PATH="$virtio_iso"
     VIRTIO_ISO_VOLUME="$virtio_volume"
     return 0
 }
@@ -189,9 +191,7 @@ generate_autounattend_xml() {
     local win_version="$1"
     local output_path="$2"
 
-    # Definir o path dos drivers VirtIO conforme a versão
-    local virtio_driver_path
-    if ! virtio_driver_path=$(windows_virtio_driver_path "$win_version"); then
+    if ! windows_virtio_driver_path "$win_version" >/dev/null; then
         log_error "Versão Windows não suportada: ${win_version}."
         return 1
     fi
@@ -227,20 +227,6 @@ generate_autounattend_xml() {
       <SystemLocale>en-US</SystemLocale>
       <UILanguage>en-US</UILanguage>
       <UserLocale>en-US</UserLocale>
-    </component>
-
-    <!-- Carregar somente o driver boot-critical necessário ao disco SCSI.
-         Os demais drivers serão instalados pelo VirtIO Guest Tools no primeiro logon. -->
-    <component name="Microsoft-Windows-PnpCustomizationsWinPE"
-               processorArchitecture="amd64"
-               publicKeyToken="31bf3856ad364e35"
-               language="neutral"
-               versionScope="nonSxS">
-      <DriverPaths>
-        <PathAndCredentials wcm:action="add" wcm:keyValue="1">
-          <Path>E:\\vioscsi\\${virtio_driver_path}\\amd64</Path>
-        </PathAndCredentials>
-      </DriverPaths>
     </component>
 
     <!-- Configuração do Setup (disco, partições, imagem) -->
@@ -397,7 +383,7 @@ generate_autounattend_xml() {
         </SynchronousCommand>
         <SynchronousCommand wcm:action="add">
           <Order>2</Order>
-          <CommandLine>E:\virtio-win-guest-tools.exe /S /v"/qn ADDLOCAL=ALL"</CommandLine>
+          <CommandLine>powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "\$installer = Get-PSDrive -PSProvider FileSystem | ForEach-Object { Join-Path \$_.Root 'virtio-win-guest-tools.exe' } | Where-Object { Test-Path \$_ } | Select-Object -First 1; if (-not \$installer) { exit 1 }; Start-Process -FilePath \$installer -ArgumentList '/S','/v&quot;/qn ADDLOCAL=ALL&quot;' -Wait"</CommandLine>
           <Description>Install VirtIO Guest Tools and QEMU Guest Agent</Description>
         </SynchronousCommand>
         <SynchronousCommand wcm:action="add">
@@ -444,6 +430,8 @@ XMLEOF
 generate_autounattend_iso() {
     local xml_path="$1"
     local iso_output="$2"
+    local win_version="${3:-}"
+    local virtio_iso_path="${4:-}"
 
     local tmp_dir previous_umask
     previous_umask=$(umask)
@@ -459,6 +447,47 @@ generate_autounattend_iso() {
         umask "$previous_umask"
         log_error "Falha ao preparar o autounattend.xml para geração do ISO."
         return 1
+    fi
+
+    # O Windows Setup pesquisa automaticamente por $WinPEDriver$ na raiz das
+    # mídias montadas. Incorporar apenas vioscsi evita depender de D:/E:/F: e
+    # impede que drivers não essenciais sejam tratados como boot-critical.
+    if [[ -n "$win_version" || -n "$virtio_iso_path" ]]; then
+        if [[ -z "$win_version" || -z "$virtio_iso_path" || ! -f "$virtio_iso_path" ]]; then
+            rm -rf "$tmp_dir"
+            umask "$previous_umask"
+            log_error "Versão Windows ou ISO VirtIO inválida para incorporar o driver boot-critical."
+            return 1
+        fi
+
+        local virtio_driver_path driver_dir iso_entry extracted=0
+        if ! virtio_driver_path=$(windows_virtio_driver_path "$win_version"); then
+            rm -rf "$tmp_dir"
+            umask "$previous_umask"
+            log_error "Versão Windows não suportada: ${win_version}."
+            return 1
+        fi
+
+        driver_dir="${tmp_dir}/\$WinPEDriver\$/vioscsi"
+        mkdir -p "$driver_dir"
+        while IFS= read -r iso_entry; do
+            [[ -z "$iso_entry" ]] && continue
+            if ! isoinfo -i "$virtio_iso_path" -x "$iso_entry" > "${driver_dir}/${iso_entry##*/}"; then
+                rm -rf "$tmp_dir"
+                umask "$previous_umask"
+                log_error "Falha ao extrair ${iso_entry} da ISO VirtIO."
+                return 1
+            fi
+            extracted=$((extracted + 1))
+        done < <(isoinfo -i "$virtio_iso_path" -f | grep -Ei "^/vioscsi/${virtio_driver_path}/amd64/[^/]+$")
+
+        if [[ "$extracted" -eq 0 || ! -s "${driver_dir}/vioscsi.inf" || \
+              ! -s "${driver_dir}/vioscsi.sys" || ! -s "${driver_dir}/vioscsi.cat" ]]; then
+            rm -rf "$tmp_dir"
+            umask "$previous_umask"
+            log_error "Driver vioscsi/${virtio_driver_path}/amd64 incompleto na ISO VirtIO."
+            return 1
+        fi
     fi
 
     log_info "Gerando ISO do autounattend..."
@@ -543,7 +572,7 @@ create_windows_template() (
         return 1
     fi
 
-    if ! generate_autounattend_iso "$xml_path" "$autounattend_iso"; then
+    if ! generate_autounattend_iso "$xml_path" "$autounattend_iso" "$win_version" "$VIRTIO_ISO_PATH"; then
         rm -rf "$unattend_dir"
         rm -f "$autounattend_iso"
         return 1
@@ -602,9 +631,8 @@ create_windows_template() (
         return 1
     fi
 
-    # O autounattend referencia E:\ para os drivers e o instalador VirtIO.
-    # Com a mídia do Windows em ide0, manter VirtIO em ide1 e autounattend em
-    # ide2 garante que E: corresponda à ISO VirtIO no Windows PE.
+    # O driver vioscsi necessário ao WinPE está incorporado no autounattend ISO
+    # em $WinPEDriver$, portanto não depende da letra atribuída às mídias.
     if ! qm set "$vmid" --ide0 "${WIN_ISO_VOLUME},media=cdrom" || \
        ! qm set "$vmid" --ide1 "${VIRTIO_ISO_VOLUME},media=cdrom" || \
        ! qm set "$vmid" --ide2 "${autounattend_iso_volume},media=cdrom"; then
@@ -848,6 +876,7 @@ create_all_windows_templates() {
     # Windows Server 2019
     WIN_ISO_PATH=""
     WIN_ISO_VOLUME=""
+    VIRTIO_ISO_PATH=""
     VIRTIO_ISO_VOLUME=""
     if create_win_2019_template; then
         created+=("win-server-2019-template (VMID: ${VMID_WIN_2019})")
@@ -862,6 +891,7 @@ create_all_windows_templates() {
     # Windows Server 2022
     WIN_ISO_PATH=""
     WIN_ISO_VOLUME=""
+    VIRTIO_ISO_PATH=""
     VIRTIO_ISO_VOLUME=""
     if create_win_2022_template; then
         created+=("win-server-2022-template (VMID: ${VMID_WIN_2022})")
@@ -877,6 +907,7 @@ create_all_windows_templates() {
     # Windows Server 2025
     WIN_ISO_PATH=""
     WIN_ISO_VOLUME=""
+    VIRTIO_ISO_PATH=""
     VIRTIO_ISO_VOLUME=""
     if create_win_2025_template; then
         created+=("win-server-2025-template (VMID: ${VMID_WIN_2025})")
