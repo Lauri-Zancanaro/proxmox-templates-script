@@ -4,6 +4,10 @@ Todas as mudanças notáveis neste projeto serão documentadas neste arquivo. O 
 
 ## [Unreleased]
 
+### Adicionado
+
+- Exemplos sem segredos de `cloudbase-init.conf` e `cloudbase-init-unattend.conf` para o ConfigDrive do Proxmox, validados no Windows Server 2019 da VM 9012 antes do Sysprep.
+
 ### Corrigido
 
 - O fluxo Windows deixou de assumir `local:iso`: o storage das ISOs agora é configurado por `WINDOWS_ISO_STORAGE`, usado para anexar e remover o ISO `autounattend` corretamente.

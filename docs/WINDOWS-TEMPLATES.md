@@ -91,7 +91,7 @@ O Cloudbase-Init é o equivalente Windows do Cloud-Init. Ele permite que o Proxm
    * Escolha o usuário `Administrator` (ou altere o `username` nos arquivos principal e `cloudbase-init-unattend.conf` se usar instalação silenciosa, cujo default é `Admin`).
    * Selecione a porta serial `COM1` para logging e diagnóstico (o script já adicionou esta porta à VM). Os metadados do Proxmox são lidos pelo drive Cloud-Init/ConfigDrive, não pela porta serial.
    * **ATENÇÃO:** Na última tela do instalador, **DESMARQUE** as opções "Run Sysprep" e "Reboot". Clique em Finish.
-3. Abra o arquivo de configuração `C:\Program Files\Cloudbase Solutions\Cloudbase-Init\conf\cloudbase-init.conf` em um editor de texto (como o Notepad) e ajuste para o seguinte padrão [4]:
+3. Ajuste **ambos** os arquivos em `C:\Program Files\Cloudbase Solutions\Cloudbase-Init\conf\`: `cloudbase-init.conf` (execução regular nos clones) e `cloudbase-init-unattend.conf` (passo de Sysprep). Use os exemplos sem credenciais testados na VM 9012: [`examples/windows/cloudbase-init.conf`](../examples/windows/cloudbase-init.conf) e [`examples/windows/cloudbase-init-unattend.conf`](../examples/windows/cloudbase-init-unattend.conf). Restrinja o provedor de metadados a `ConfigDriveService` e verifique que `username=Administrator` está presente nos dois arquivos. A configuração principal segue o padrão:
 
 ```ini
 [DEFAULT]
@@ -107,16 +107,19 @@ bsdtar_path=C:\Program Files\Cloudbase Solutions\Cloudbase-Init\bin\bsdtar.exe
 mtools_path=C:\Program Files\Cloudbase Solutions\Cloudbase-Init\bin\
 verbose=true
 debug=true
-logdir=C:\Program Files\Cloudbase Solutions\Cloudbase-Init\log\
-logfile=cloudbase-init.log
+log_dir=C:\Program Files\Cloudbase Solutions\Cloudbase-Init\log\
+log_file=cloudbase-init.log
 default_log_levels=comtypes=INFO,suds=INFO,iso8601=WARN,requests=WARN
 logging_serial_port_settings=COM1,115200,N,8
 mtu_use_dhcp_config=false
 ntp_use_dhcp_config=false
 local_scripts_path=C:\Program Files\Cloudbase Solutions\Cloudbase-Init\LocalScripts\
-check_latest_version=true
-plugins=cloudbaseinit.plugins.common.networkconfig.NetworkConfigPlugin,cloudbaseinit.plugins.common.mtu.MTUPlugin,cloudbaseinit.plugins.common.sethostname.SetHostNamePlugin,cloudbaseinit.plugins.windows.extendvolumes.ExtendVolumesPlugin,cloudbaseinit.plugins.common.sshpublickeys.SetUserSSHPublicKeysPlugin,cloudbaseinit.plugins.common.setuserpassword.SetUserPasswordPlugin
+check_latest_version=false
+allow_reboot=true
+plugins=cloudbaseinit.plugins.common.networkconfig.NetworkConfigPlugin,cloudbaseinit.plugins.common.mtu.MTUPlugin,cloudbaseinit.plugins.common.sethostname.SetHostNamePlugin,cloudbaseinit.plugins.windows.extendvolumes.ExtendVolumesPlugin,cloudbaseinit.plugins.common.setuserpassword.SetUserPasswordPlugin
 ```
+
+O arquivo `cloudbase-init-unattend.conf` usa apenas os plugins necessários ao passo de especialização (MTU, hostname e extensão de volumes), com `allow_reboot=false` e `stop_service_on_exit=false`. O instalador 1.1.8 usa `log_dir`/`log_file`, não `logdir`/`logfile`. Confira a importação dos plugins e o serviço `cloudbase-init` configurado como `AUTO_START` antes do Sysprep.
 
 ### 4.4. Execução do Sysprep
 O Sysprep (System Preparation Tool) remove identificadores únicos (como o SID) da instalação, garantindo que cada clone gerado a partir do template seja tratado como uma máquina única na rede [3].
